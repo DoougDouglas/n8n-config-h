@@ -4,7 +4,7 @@ FROM python:3.12-slim-bookworm
 # Define o usuário como root para instalar pacotes
 USER root
 
-# Instala as dependências de sistema, mas agora forçando a instalação do Node.js v20
+# Instala as dependências de sistema, forçando a instalação do Node.js v20
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
@@ -14,10 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Limpa o cache do NPM e instala o n8n globalmente para garantir uma instalação limpa
-RUN npm cache clean --force && npm install -g n8n
+# Limpa o cache e instala uma VERSÃO ESPECÍFICA E ESTÁVEL do n8n
+# <-- AQUI ESTÁ A CORREÇÃO DEFINITIVA
+RUN npm cache clean --force && npm install -g n8n@1.45.1
 
-# Cria um usuário não-root 'node' para rodar a aplicação (boa prática de segurança)
+# Cria um usuário não-root 'node' para rodar a aplicação
 RUN useradd -ms /bin/bash node
 
 # Copia os requirements e define o diretório de trabalho
