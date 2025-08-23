@@ -4,13 +4,12 @@ FROM python:3.12-slim-bookworm
 # Define o usuário como root para instalar pacotes
 USER root
 
-# Instala as dependências de sistema com 'apt-get' (o gerenciador do Debian)
-# - nodejs e npm: para instalar o n8n
-# - ffmpeg: para seus scripts de áudio
-# - build-essential: caso alguma pequena compilação ainda seja necessária
+# Instala as dependências de sistema, mas agora forçando a instalação do Node.js v20
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends \
     nodejs \
-    npm \
     ffmpeg \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -19,14 +18,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN npm install -g n8n
 
 # Cria um usuário não-root 'node' para rodar a aplicação (boa prática de segurança)
-# A imagem oficial do n8n também usa um usuário chamado 'node'
 RUN useradd -ms /bin/bash node
 
 # Copia os requirements e define o diretório de trabalho
 WORKDIR /app
 COPY requirements.txt ./
 
-# Instala as bibliotecas Python (isso será MUITO mais rápido agora)
+# Instala as bibliotecas Python
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia seus scripts
