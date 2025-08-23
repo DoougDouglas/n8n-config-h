@@ -3,7 +3,7 @@ FROM docker.n8n.io/n8nio/n8n
 USER root
 
 # Instala ffmpeg + python + pip + compiladores e libs
-RUN apk add --no-cache ffmpeg python3 py3-pip \
+RUN apk add --no-cache ffmpeg python3 py3-pip python3-dev \
     build-base gcc gfortran musl-dev \
     lapack-dev blas-dev libsndfile-dev openblas-dev
 
