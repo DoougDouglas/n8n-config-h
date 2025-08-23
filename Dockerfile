@@ -14,8 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Instala o n8n globalmente usando npm
-RUN npm install -g n8n
+# Limpa o cache do NPM e instala o n8n globalmente para garantir uma instalação limpa
+RUN npm cache clean --force && npm install -g n8n
 
 # Cria um usuário não-root 'node' para rodar a aplicação (boa prática de segurança)
 RUN useradd -ms /bin/bash node
