@@ -1,30 +1,43 @@
-FROM docker.n8n.io/n8nio/n8n
+# PASSO 1: Usar uma imagem base oficial do Python com Debian "Bookworm"
+FROM python:3.12-slim-bookworm
 
+# Define o usuário como root para instalar pacotes
 USER root
 
-# Instala ffmpeg, python, compiladores e as libs de desenvolvimento do Python
-# A linha abaixo foi a principal alteração
-RUN apk add --no-cache ffmpeg python3 py3-pip python3-dev \
-    build-base gcc gfortran musl-dev \
-    lapack-dev blas-dev libsndfile-dev openblas-dev
+# Instala as dependências de sistema com 'apt-get' (o gerenciador do Debian)
+# - nodejs e npm: para instalar o n8n
+# - ffmpeg: para seus scripts de áudio
+# - build-essential: caso alguma pequena compilação ainda seja necessária
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nodejs \
+    npm \
+    ffmpeg \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Cria um ambiente virtual em /opt/venv
-RUN python3 -m venv /opt/venv
+# Instala o n8n globalmente usando npm
+RUN npm install -g n8n
 
-# Adiciona o executável do venv ao PATH do sistema
-ENV PATH="/opt/venv/bin:$PATH"
+# Cria um usuário não-root 'node' para rodar a aplicação (boa prática de segurança)
+# A imagem oficial do n8n também usa um usuário chamado 'node'
+RUN useradd -ms /bin/bash node
 
-# Atualiza pip e instala as bibliotecas Python necessárias (agora dentro do venv)
-RUN pip install --upgrade pip wheel && \
-    pip install --no-cache-dir numpy scipy librosa reportlab aubio praat-parselmouth
+# Copia os requirements e define o diretório de trabalho
+WORKDIR /app
+COPY requirements.txt ./
 
-# Cria diretório pros scripts
-RUN mkdir -p /scripts
+# Instala as bibliotecas Python (isso será MUITO mais rápido agora)
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia os scripts para dentro do container
-COPY ./scripts/*.py /scripts/
-
-# Garante que os scripts podem rodar
+# Copia seus scripts
+COPY ./scripts/ /scripts/
 RUN chmod +x /scripts/*.py
 
+# Muda a propriedade dos arquivos para o usuário 'node'
+RUN chown -R node:node /app /scripts
+
+# Muda para o usuário 'node'
 USER node
+
+# Define o comando padrão para iniciar o n8n quando o contêiner rodar
+CMD ["n8n"]
