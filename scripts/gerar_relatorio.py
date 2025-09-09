@@ -101,7 +101,10 @@ resumo_content = [
     f"Qualidade (HNR): {round(summary.get('hnr_db', 0), 2)} dB",
     f"Classificação Sugerida: {classificacao}"
 ]
-y = draw_text_section(c, y, "Resumo da Análise", colors.HexColor("#1F618D"), resumo_content)
+# --- INÍCIO DA CORREÇÃO ---
+# A ordem correta dos argumentos é: (canvas, y, titulo, CONTEUDO, COR)
+y = draw_text_section(c, y, "Resumo da Análise", resumo_content, colors.HexColor("#1F618D"))
+# --- FIM DA CORREÇÃO ---
 
 # Gráfico de Contorno de Afinação
 pitch_contour_data = data.get("time_series", {}).get("pitch_contour", [])
@@ -118,12 +121,16 @@ if vibrato_info.get("is_present"):
         f"Taxa de Modulação: {round(vibrato_info.get('rate_hz', 0), 2)} Hz (ideal: 5-7 Hz)",
         f"Extensão da Variação: {round(vibrato_info.get('extent_semitones', 0), 2)} semitons"
     ]
-    y = draw_text_section(c, y, "Análise de Vibrato", colors.HexColor("#9B59B6"), vibrato_content)
+    # --- INÍCIO DA CORREÇÃO ---
+    y = draw_text_section(c, y, "Análise de Vibrato", vibrato_content, colors.HexColor("#9B59B6"))
+    # --- FIM DA CORREÇÃO ---
 
 # Recomendações Personalizadas
 recomendacoes = generate_recommendations(data)
 if recomendacoes:
-    y = draw_text_section(c, y, "Recomendações e Dicas 💡", colors.HexColor("#E67E22"), recomendacoes)
+    # --- INÍCIO DA CORREÇÃO ---
+    y = draw_text_section(c, y, "Recomendações e Dicas 💡", recomendacoes, colors.HexColor("#E67E22"))
+    # --- FIM DA CORREÇÃO ---
 
 # Notas Finais
 c.setFont("Helvetica-Oblique", 10); c.setFillColor(colors.dimgray)
