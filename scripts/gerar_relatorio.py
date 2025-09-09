@@ -23,7 +23,7 @@ data = {
 # --- FIM DA CORREÇÃO ---
 
 
-pdf_file = "/tmp/relatorio_vocal.pdf"
+pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4
 
