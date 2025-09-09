@@ -27,7 +27,7 @@ faixas_referencia = {
 # --- FUNÇÕES DE LÓGICA E DESENHO ---
 
 def generate_recommendations(data):
-    # (Função de recomendações permanece a mesma)
+    # (Função de recomendações)
     recomendacoes = []
     summary = data.get("summary", {})
     hnr = summary.get("hnr_db", 0)
@@ -40,56 +40,51 @@ def generate_recommendations(data):
     return recomendacoes
 
 def draw_pitch_contour_chart(pitch_data):
-    # (Função do gráfico de contorno permanece a mesma)
+    # (Função do gráfico de contorno)
     times = [p[0] for p in pitch_data if p[1] is not None]
     frequencies = [p[1] for p in pitch_data if p[1] is not None]
     if not times: return None
-    plt.figure(figsize=(7, 2.5)); plt.plot(times, frequencies, color='#2E86C1', linewidth=2)
+    # Aumentamos a qualidade da imagem gerada
+    plt.figure(figsize=(10, 3.5)); plt.plot(times, frequencies, color='#2E86C1', linewidth=2)
     plt.title("Contorno da Afinação ao Longo do Tempo", fontsize=12); plt.xlabel("Tempo (segundos)", fontsize=10)
     plt.ylabel("Frequência (Hz)", fontsize=10); plt.grid(True, linestyle='--', alpha=0.6)
     plt.ylim(bottom=max(0, min(frequencies) - 20), top=max(frequencies) + 20); plt.tight_layout()
-    buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close()
+    buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=200); buf.seek(0); plt.close()
     return buf
 
-# --- FUNÇÃO DO ESPECTROGRAMA CORRIGIDA ---
 def draw_spectrogram(sound):
-    """Cria um espectrograma do áudio e retorna como uma imagem em memória."""
+    # (Função do espectrograma)
     try:
         spectrogram = sound.to_spectrogram()
-        plt.figure(figsize=(7, 2.5))
+        # Aumentamos a qualidade da imagem gerada
+        plt.figure(figsize=(10, 3.5))
         
+        X, Y = spectrogram.x_grid(), spectrogram.y_grid()
         sg_db = 10 * np.log10(spectrogram.values)
         
-        # --- INÍCIO DA CORREÇÃO ---
-        # Trocamos pcolormesh por imshow, que é mais robusto para este tipo de dado.
-        # Definimos o 'extent' para que os eixos (tempo e frequência) fiquem corretos.
         plt.imshow(sg_db, cmap='viridis', aspect='auto', origin='lower', 
                    extent=[spectrogram.xmin, spectrogram.xmax, spectrogram.ymin, spectrogram.ymax])
-        # --- FIM DA CORREÇÃO ---
         
         plt.title("Espectrograma (Impressão Digital da Voz)", fontsize=12)
         plt.xlabel("Tempo (segundos)", fontsize=10)
         plt.ylabel("Frequência (Hz)", fontsize=10)
-        plt.ylim(top=3500)
+        plt.ylim(top=4000) # Aumenta um pouco o teto para vozes mais agudas
         
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150)
-        buf.seek(0)
-        plt.close()
+        buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=200); buf.seek(0); plt.close()
         return buf
     except Exception as e:
         print(f"DEBUG: Erro ao gerar o espectrograma: {e}", file=sys.stderr)
         return None
 
 def draw_paragraph_section(c, y_start, title, content_list, title_color=colors.black):
-    # (Função de parágrafo permanece a mesma)
+    # (Função de parágrafo)
     c.setFont("Helvetica-Bold", 14); c.setFillColor(title_color); c.drawString(50, y_start, title)
     styles = getSampleStyleSheet(); style = styles['BodyText']
     style.fontName = 'Helvetica'; style.fontSize = 11; style.leading = 15
     y_line = y_start - 20
     for text_line in content_list:
-        p = Paragraph(text_line, style); w, h = p.wrapOn(c, width - 110, height)
-        p.drawOn(c, 60, y_line - h); y_line -= (h + 10)
+        p = Paragraph(text_line, style); w, h = p.wrapOn(c, width - 100, height) # Margem de 50 de cada lado
+        p.drawOn(c, 50, y_line - h); y_line -= (h + 10)
     return y_line - 15
 
 # --- SCRIPT PRINCIPAL DE GERAÇÃO DE PDF ---
@@ -108,6 +103,8 @@ pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4
 y = height - 110
+margin = 50
+available_width = width - (2 * margin) # Largura total - margens
 
 # Cabeçalho
 c.setFillColor(colors.HexColor("#2E86C1")); c.setFont("Helvetica-Bold", 20)
@@ -125,19 +122,25 @@ c.drawString(60, y-60, f"• Qualidade (HNR): {round(summary.get('hnr_db', 0), 2
 c.drawString(60, y-80, f"• Classificação Sugerida: {classificacao}")
 y -= 110
 
-# Gráfico de Espectrograma
+# --- ADIÇÃO DOS GRÁFICOS MAIORES ---
 spectrogram_buffer = draw_spectrogram(sound)
 if spectrogram_buffer:
-    c.drawImage(ImageReader(spectrogram_buffer), 50, y - 100, width=7*cm, height=2.5*cm)
-    y -= 130
+    # Desenha a imagem com a largura disponível, mantendo a proporção da altura
+    img = ImageReader(spectrogram_buffer)
+    img_width, img_height = img.getSize()
+    aspect = img_height / float(img_width)
+    c.drawImage(img, margin, y - (available_width * aspect), width=available_width, height=(available_width * aspect), preserveAspectRatio=True, anchor='c')
+    y -= (available_width * aspect) + 30 # Ajusta o Y baseado na altura proporcional + margem
 
-# Gráfico de Contorno de Afinação
 pitch_contour_data = data.get("time_series", {}).get("pitch_contour", [])
 if pitch_contour_data:
     chart_buffer = draw_pitch_contour_chart(pitch_contour_data)
     if chart_buffer:
-        c.drawImage(ImageReader(chart_buffer), 50, y - 100, width=7*cm, height=2.5*cm)
-        y -= 130
+        img = ImageReader(chart_buffer)
+        img_width, img_height = img.getSize()
+        aspect = img_height / float(img_width)
+        c.drawImage(img, margin, y - (available_width * aspect), width=available_width, height=(available_width * aspect), preserveAspectRatio=True, anchor='c')
+        y -= (available_width * aspect) + 30
 
 # Recomendações Personalizadas
 recomendacoes = generate_recommendations(data)
@@ -146,9 +149,8 @@ if recomendacoes:
 
 # Notas Finais
 c.setFont("Helvetica-Oblique", 10); c.setFillColor(colors.dimgray)
-y = 80 # Posição fixa para o rodapé
-c.drawCentredString(width/2, y, "Este é um relatório de biofeedback gerado por computador.")
-c.drawCentredString(width/2, y-15, "Use-o como uma ferramenta para guiar sua percepção e seus estudos.")
+c.drawCentredString(width/2, 60, "Este é um relatório de biofeedback gerado por computador.")
+c.drawCentredString(width/2, 45, "Use-o como uma ferramenta para guiar sua percepção e seus estudos.")
 
 c.save()
 print(pdf_file)
