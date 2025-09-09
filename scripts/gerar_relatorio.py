@@ -4,9 +4,25 @@ from reportlab.lib import colors
 from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics import renderPDF
-import sys, json
+import sys
 
-data = json.loads(sys.argv[1])
+# --- INÍCIO DA CORREÇÃO ---
+# Removemos a linha antiga e adicionamos este bloco.
+# Ele lê os 4 argumentos vindos do n8n e monta o dicionário 'data'.
+
+if len(sys.argv) != 5:
+    print("Erro: O script espera 4 argumentos: pitch_hz, formant1, formant2, classificacao")
+    sys.exit(1)
+
+data = {
+    "pitch_hz": float(sys.argv[1]),
+    "formant1": float(sys.argv[2]),
+    "formant2": float(sys.argv[3]),
+    "classificacao": sys.argv[4]
+}
+# --- FIM DA CORREÇÃO ---
+
+
 pdf_file = "/tmp/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4
