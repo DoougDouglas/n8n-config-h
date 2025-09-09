@@ -10,12 +10,10 @@ def frequency_to_note(frequency):
     if not frequency or not isinstance(frequency, (int, float)) or frequency <= 0:
         return "N/A"
     
-    # Frequências de referência
     A4 = 440
     C0 = A4 * pow(2, -4.75)
     note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
     
-    # Calcula o número de semitons a partir de C0
     half_steps = round(12 * math.log2(frequency / C0))
     octave = half_steps // 12
     note_index = half_steps % 12
@@ -24,39 +22,38 @@ def frequency_to_note(frequency):
 
 # --- SCRIPT PRINCIPAL ---
 
-# Pega o nome do arquivo enviado pelo n8n
 filename = sys.argv[1]
 
 try:
-    # Carrega o áudio UMA ÚNICA VEZ com parselmouth
     sound = parselmouth.Sound(filename)
-
-    # 1. ANÁLISE DE PITCH (AFINAÇÃO)
+    
+    # 1. ANÁLISE DE PITCH
     pitch = sound.to_pitch()
     mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
     pitch_note = frequency_to_note(mean_pitch_hz)
 
-    # Cria um PointProcess para calcular Jitter e Shimmer
-    point_process = call(sound, "To PointProcess (periodic, cc)", pitch)
+    # --- INÍCIO DA CORREÇÃO ---
+    # O PointProcess é criado a partir do PITCH, não do SOM.
+    # E para Jitter/Shimmer, precisamos passar o PointProcess E o Som juntos.
+    point_process = call(pitch, "To PointProcess")
+    
+    # 2. JITTER - Passamos uma tupla (point_process, sound)
+    jitter_percent = call((point_process, sound), "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
 
-    # 2. JITTER (ESTABILIDADE DA AFINAÇÃO) - em porcentagem
-    jitter_percent = call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
+    # 3. SHIMMER - Passamos uma tupla (point_process, sound)
+    shimmer_percent = call((point_process, sound), "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6) * 100
+    # --- FIM DA CORREÇÃO ---
 
-    # 3. SHIMMER (ESTABILIDADE DA INTENSIDADE/VOLUME) - em porcentagem
-    shimmer_percent = call(point_process, "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6) * 100
-
-    # 4. HARMONICS-TO-NOISE RATIO (HNR - "LIMPEZA" DA VOZ) - em dB
+    # 4. HARMONICS-TO-NOISE RATIO (HNR)
     harmonicity = sound.to_harmonicity()
     hnr_db = call(harmonicity, "Get mean", 0, 0)
 
-    # 5. FORMANTES (RESONÂNCIA)
-    # Analisa os formantes no meio do arquivo de áudio para mais precisão
+    # 5. FORMANTES
     duration = sound.get_total_duration()
     formant = sound.to_formant_burg(time_step=0.01)
     f1_hz = call(formant, "Get value at time", 1, duration / 2, "Hertz", "Linear")
     f2_hz = call(formant, "Get value at time", 2, duration / 2, "Hertz", "Linear")
 
-    # Monta o dicionário com todos os dados
     output_data = {
         "pitch_hz": mean_pitch_hz,
         "pitch_note": pitch_note,
@@ -68,8 +65,6 @@ try:
     }
 
 except Exception as e:
-    # Em caso de erro (ex: arquivo de áudio inválido), retorna um erro claro
     output_data = {"error": str(e)}
 
-# Imprime o resultado final como um texto JSON, que o n8n vai receber
 print(json.dumps(output_data))
