@@ -3,4 +3,4 @@ scipy
 librosa
 reportlab
 aubio
-praat-parselmouth
+praat-parselmouth==0.4.3
