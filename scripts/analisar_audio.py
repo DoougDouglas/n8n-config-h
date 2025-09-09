@@ -3,6 +3,7 @@ import json
 import parselmouth
 from parselmouth.praat import call
 import math
+import numpy as np
 
 def frequency_to_note(frequency):
     if not frequency or not isinstance(frequency, (int, float)) or frequency <= 0:
@@ -16,36 +17,61 @@ def frequency_to_note(frequency):
     return f"{note_names[note_index]}{octave}"
 
 filename = sys.argv[1]
+results = {"status": "Análise iniciada."}
 
 try:
     sound = parselmouth.Sound(filename)
-    
     pitch = sound.to_pitch()
+    
+    # --- DADOS DE RESUMO (PARA OS MEDIDORES) ---
     mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
     pitch_note = frequency_to_note(mean_pitch_hz)
-
-    harmonicity = sound.to_harmonicity()
-    hnr_db = call(harmonicity, "Get mean", 0, 0)
-    
-    # --- NOVA MÉTRICA ADICIONADA ---
     intensity_db = sound.get_intensity()
-
+    hnr_db = call(sound.to_harmonicity(), "Get mean", 0, 0)
+    
     duration = sound.get_total_duration()
-    formant = sound.to_formant_burg(time_step=0.01)
+    formant = sound.to_formant_burg()
     f1_hz = call(formant, "Get value at time", 1, duration / 2, "Hertz", "Linear")
     f2_hz = call(formant, "Get value at time", 2, duration / 2, "Hertz", "Linear")
 
-    output_data = {
-        "status": "Análise concluída.",
+    results["summary"] = {
         "pitch_hz": mean_pitch_hz,
         "pitch_note": pitch_note,
+        "intensity_db": intensity_db,
         "hnr_db": hnr_db,
-        "intensity_db": intensity_db, # <-- Novo dado
         "formant1_hz": f1_hz,
         "formant2_hz": f2_hz
     }
 
-except Exception as e:
-    output_data = {"error": str(e), "status": "Falha na análise."}
+    # --- DADOS PARA O GRÁFICO DE CONTORNO DE AFINAÇÃO ---
+    pitch_values = pitch.selected_array['frequency']
+    pitch_values[pitch_values==0] = np.nan # Substitui 0s por NaN para não plotar
+    times = pitch.xs()
+    # Pega no máximo 200 pontos para não sobrecarregar o JSON
+    step = max(1, len(times) // 200)
+    results["time_series"] = {
+        "pitch_contour": list(zip(times[::step], pitch_values[::step]))
+    }
+    
+    # --- ANÁLISE DE VIBRATO ---
+    try:
+        point_process = call(pitch, "To PointProcess")
+        # Parâmetros padrão para análise de vibrato
+        avg_period, freq_excursion, std_dev_period, _, _, _, _, _ = call(
+            (sound, point_process, pitch), "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
+        )
+        results["vibrato"] = {
+            "is_present": True,
+            "rate_hz": 1 / avg_period if avg_period > 0 else 0, # Taxa do vibrato em Hz
+            "extent_semitones": freq_excursion # Extensão em semitons
+        }
+    except Exception:
+        results["vibrato"] = {"is_present": False}
 
-print(json.dumps(output_data))
+    results["status"] = "Análise completa."
+
+except Exception as e:
+    results["status"] = "Falha na análise."
+    results["error"] = str(e)
+
+print(json.dumps(results))
