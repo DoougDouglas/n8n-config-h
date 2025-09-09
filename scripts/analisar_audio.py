@@ -6,18 +6,14 @@ import math
 
 # --- FUNÇÃO AUXILIAR PARA CONVERTER HERTZ EM NOTA MUSICAL ---
 def frequency_to_note(frequency):
-    """Converte uma frequência em Hz para a nota musical mais próxima (ex: A4)."""
     if not frequency or not isinstance(frequency, (int, float)) or frequency <= 0:
         return "N/A"
-    
     A4 = 440
     C0 = A4 * pow(2, -4.75)
     note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-    
     half_steps = round(12 * math.log2(frequency / C0))
     octave = half_steps // 12
     note_index = half_steps % 12
-    
     return f"{note_names[note_index]}{octave}"
 
 # --- SCRIPT PRINCIPAL ---
@@ -32,29 +28,35 @@ try:
     mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
     pitch_note = frequency_to_note(mean_pitch_hz)
 
-    # --- INÍCIO DA CORREÇÃO ---
-    # O PointProcess é criado a partir do PITCH, não do SOM.
-    # E para Jitter/Shimmer, precisamos passar o PointProcess E o Som juntos.
+    # 2. ANÁLISE DE ESTABILIDADE (JITTER E SHIMMER)
     point_process = call(pitch, "To PointProcess")
     
-    # 2. JITTER - Passamos uma tupla (point_process, sound)
-    jitter_percent = call((point_process, sound), "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
-
-    # 3. SHIMMER - Passamos uma tupla (point_process, sound)
-    shimmer_percent = call((point_process, sound), "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6) * 100
+    # --- INÍCIO DA CORREÇÃO ---
+    # Verifica se há pontos de pulso vocal para analisar
+    if call(point_process, "Get number of points") > 1:
+        # Se houver, calcula Jitter e Shimmer
+        jitter_percent = call((point_process, sound), "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
+        shimmer_percent = call((point_process, sound), "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6) * 100
+        status_message = "Análise completa."
+    else:
+        # Se não houver, define como 0 e avisa no status
+        jitter_percent = 0.0
+        shimmer_percent = 0.0
+        status_message = "Análise parcial: não foi possível calcular Jitter/Shimmer (áudio curto ou sem vogal sustentada)."
     # --- FIM DA CORREÇÃO ---
 
-    # 4. HARMONICS-TO-NOISE RATIO (HNR)
+    # 3. HARMONICS-TO-NOISE RATIO (HNR)
     harmonicity = sound.to_harmonicity()
     hnr_db = call(harmonicity, "Get mean", 0, 0)
 
-    # 5. FORMANTES
+    # 4. FORMANTES
     duration = sound.get_total_duration()
     formant = sound.to_formant_burg(time_step=0.01)
     f1_hz = call(formant, "Get value at time", 1, duration / 2, "Hertz", "Linear")
     f2_hz = call(formant, "Get value at time", 2, duration / 2, "Hertz", "Linear")
 
     output_data = {
+        "status": status_message,
         "pitch_hz": mean_pitch_hz,
         "pitch_note": pitch_note,
         "jitter_percent": jitter_percent,
@@ -65,6 +67,6 @@ try:
     }
 
 except Exception as e:
-    output_data = {"error": str(e)}
+    output_data = {"error": str(e), "status": "Falha na análise."}
 
 print(json.dumps(output_data))
