@@ -28,9 +28,8 @@ except Exception as e:
 pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4
-y = height - 120 # Posição vertical inicial
 
-# --- NOVAS FUNÇÕES DE DESENHO ---
+# --- FUNÇÕES DE DESENHO CORRIGIDAS ---
 
 def draw_header():
     c.setFillColor(colors.HexColor("#2E86C1"))
@@ -41,45 +40,51 @@ def draw_header():
     c.line(40, height-80, width-40, height-80)
 
 def draw_gauge_chart(y_start, label, value, min_val, max_val, ideal_min, ideal_max, unit=""):
-    """Desenha um gráfico de medidor horizontal (bullet chart)."""
-    chart_width = width - 200
-    chart_x = 150
-    
-    # Normaliza os valores para a largura do gráfico
+    """Desenha um gráfico de medidor horizontal com alinhamento corrigido."""
+    chart_width = width - 250  # Diminui um pouco a largura para mais margem
+    chart_x_start = 200
+    chart_x_end = chart_x_start + chart_width
+    chart_y = y_start
+
     def normalize(val, min_v, max_v):
-        if val < min_v: val = min_v
-        if val > max_v: val = max_v
-        return chart_x + ((val - min_v) / (max_v - min_v)) * chart_width
+        # Garante que o valor não saia dos limites do gráfico
+        val = max(min_v, min(val, max_v))
+        return chart_x_start + ((val - min_v) / (max_v - min_v)) * chart_width
 
     # Desenha a barra de fundo
     c.setFillColor(colors.lightgrey)
-    c.rect(chart_x, y_start - 2, chart_width, 10, stroke=0, fill=1)
+    c.rect(chart_x_start, chart_y, chart_width, 15, stroke=0, fill=1)
 
     # Desenha a barra da faixa ideal
     ideal_x_start = normalize(ideal_min, min_val, max_val)
     ideal_x_end = normalize(ideal_max, min_val, max_val)
     c.setFillColor(colors.HexColor("#A9DFBF")) # Verde claro
-    c.rect(ideal_x_start, y_start - 2, ideal_x_end - ideal_x_start, 10, stroke=0, fill=1)
+    c.rect(ideal_x_start, chart_y, ideal_x_end - ideal_x_start, 15, stroke=0, fill=1)
     
     # Desenha o marcador do valor do usuário
     marker_x = normalize(value, min_val, max_val)
-    c.setStrokeColor(colors.HexColor("#1F618D"))
-    c.setLineWidth(3)
-    c.line(marker_x, y_start - 5, marker_x, y_start + 10)
+    c.setFillColor(colors.HexColor("#2E86C1")) # Azul para o marcador
+    c.rect(marker_x - 1.5, chart_y - 4, 3, 23, stroke=0, fill=1) # Marcador mais grosso
     
-    # Escreve o texto
-    c.setFont("Helvetica-Bold", 11)
+    # Escreve os textos com alinhamento corrigido
+    c.setFont("Helvetica-Bold", 12)
     c.setFillColor(colors.black)
-    c.drawString(50, y_start, label)
-    c.setFont("Helvetica", 11)
-    c.drawRightString(chart_x - 10, y_start, str(min_val))
-    c.drawCentredString(chart_x + chart_width / 2, y_start - 15, f"{round(value, 2)} {unit}")
-    c.drawString(chart_x + chart_width + 5, y_start, str(max_val))
+    c.drawString(50, chart_y + 3, label)
     
-    return y_start - 45 # Retorna a nova posição Y
+    c.setFont("Helvetica", 10)
+    c.setFillColor(colors.dimgray)
+    c.drawString(chart_x_start, chart_y - 12, str(min_val))
+    c.drawRightString(chart_x_end, chart_y - 12, str(max_val))
+    
+    c.setFont("Helvetica-Bold", 11)
+    c.setFillColor(colors.HexColor("#1F618D"))
+    c.drawCentredString(marker_x, chart_y - 25, f"{round(value, 2)} {unit}")
+    
+    return y_start - 60 # Retorna a nova posição Y com mais espaçamento
 
 # --- CONSTRUÇÃO DO PDF ---
 draw_header()
+y = height - 120
 classificacao = data.get('classificacao', 'Indefinido')
 referencia = faixas_referencia_grafico.get(classificacao, {"pitch_min": 75, "pitch_max": 600})
 
@@ -90,7 +95,8 @@ c.drawString(50, y, "Afinação (Pitch)")
 c.setFont("Helvetica", 12)
 c.setFillColor(colors.black)
 c.drawString(60, y-20, f"Nota Musical Aproximada: {data.get('pitch_note', 'N/A')}")
-y = draw_gauge_chart(y-45, "Frequência (Hz):", data.get('pitch_hz', 0), 
+y -= 45
+y = draw_gauge_chart(y, "Frequência (Hz):", data.get('pitch_hz', 0), 
                      referencia["pitch_min"] - 20, referencia["pitch_max"] + 20, 
                      referencia["pitch_min"], referencia["pitch_max"])
 
@@ -101,10 +107,7 @@ c.drawString(50, y, "Qualidade e Intensidade Vocal")
 y -= 25
 y = draw_gauge_chart(y, "Qualidade (HNR):", data.get('hnr_db', 0), 0, 40, 20, 40, "dB")
 y = draw_gauge_chart(y, "Intensidade Média:", data.get('intensity_db', 0), 50, 100, 70, 85, "dB")
-c.setFont("Helvetica-Oblique", 9)
-c.setFillColor(colors.dimgray)
-c.drawString(150, y, "(Faixa ideal em verde. Sua voz é o marcador azul.)")
-y -= 30
+y -= 10 # Espaço extra
 
 # Bloco de Formantes
 c.setFont("Helvetica-Bold", 14)
