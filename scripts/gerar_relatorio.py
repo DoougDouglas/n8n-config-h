@@ -4,10 +4,20 @@ from reportlab.lib import colors
 import sys
 import json
 
-if len(sys.argv) != 2:
-    print("Erro: O script espera um único argumento contendo os dados em formato JSON.")
+# --- INÍCIO DA CORREÇÃO ---
+# Corrigimos o caminho para corresponder exatamente onde o arquivo foi salvo
+json_file_path = "/tmp/cursoTutoLMS/py/data_for_report.json"
+# --- FIM DA CORREÇÃO ---
+
+try:
+    with open(json_file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+except FileNotFoundError:
+    print(f"Erro: O arquivo de dados {json_file_path} não foi encontrado.")
     sys.exit(1)
-data = json.loads(sys.argv[1])
+except json.JSONDecodeError:
+    print(f"Erro: O arquivo {json_file_path} não contém um JSON válido.")
+    sys.exit(1)
 
 pdf_file = "/tmp/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
@@ -51,6 +61,9 @@ f1 = data.get('formant1_hz', 0)
 f2 = data.get('formant2_hz', 0)
 formant_content = [f"Formante 1 (F1): {round(f1, 2)} Hz", f"Formante 2 (F2): {round(f2, 2)} Hz"]
 y = draw_section(y, "Formantes (Ressonância)", colors.HexColor("#117A65"), formant_content)
+
+classificacao = data.get('classificacao', 'Não determinada')
+y = draw_section(y, "Classificação Vocal", colors.HexColor("#E67E22"), [classificacao])
 
 c.setFont("Helvetica-Oblique", 11)
 c.setFillColor(colors.black)
