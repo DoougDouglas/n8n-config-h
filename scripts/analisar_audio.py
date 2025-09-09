@@ -2,71 +2,49 @@ import sys
 import json
 import parselmouth
 from parselmouth.praat import call
-import math
-
-# --- FUNÇÃO AUXILIAR PARA CONVERTER HERTZ EM NOTA MUSICAL ---
-def frequency_to_note(frequency):
-    if not frequency or not isinstance(frequency, (int, float)) or frequency <= 0:
-        return "N/A"
-    A4 = 440
-    C0 = A4 * pow(2, -4.75)
-    note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-    half_steps = round(12 * math.log2(frequency / C0))
-    octave = half_steps // 12
-    note_index = half_steps % 12
-    return f"{note_names[note_index]}{octave}"
-
-# --- SCRIPT PRINCIPAL ---
 
 filename = sys.argv[1]
+debug_info = {}
 
 try:
+    # Tenta carregar o arquivo e obter informações básicas
     sound = parselmouth.Sound(filename)
-    
-    # 1. ANÁLISE DE PITCH
-    # Usamos um floor de 75 Hz e um ceiling de 600 Hz, comuns para análise vocal
+    debug_info["arquivo_carregado"] = True
+    debug_info["duracao_segundos"] = sound.get_total_duration()
+    debug_info["n_canais"] = sound.get_number_of_channels()
+
+    # Tenta extrair o objeto de Pitch
     pitch = sound.to_pitch(time_step=0.01, pitch_floor=75.0, pitch_ceiling=600.0)
-    mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
-    pitch_note = frequency_to_note(mean_pitch_hz)
+    debug_info["objeto_pitch_criado"] = True
 
-    # 2. ANÁLISE DE ESTABILIDADE (JITTER E SHIMMER)
+    # Extrai informações detalhadas do Pitch
+    total_frames = pitch.get_number_of_frames()
+    voiced_frames = pitch.count_voiced_frames()
+    debug_info["total_de_frames"] = total_frames
+    debug_info["frames_com_voz_encontrados"] = voiced_frames
     
-    # --- INÍCIO DA CORREÇÃO ---
-    # Verificação mais robusta: checa se existem quadros de voz (voiced frames)
-    if pitch.count_voiced_frames() > 1:
+    # Se encontrou voz, tenta calcular as estatísticas
+    if voiced_frames > 0:
+        mean_pitch = call(pitch, "Get mean", 0, 0, "Hertz")
+        min_pitch = call(pitch, "Get minimum", 0, 0, "Hertz", "Parabolic")
+        max_pitch = call(pitch, "Get maximum", 0, 0, "Hertz", "Parabolic")
+        debug_info["pitch_medio_hz"] = mean_pitch
+        debug_info["pitch_minimo_hz"] = min_pitch
+        debug_info["pitch_maximo_hz"] = max_pitch
+        
+        # Tenta criar o PointProcess, que é usado para Jitter
         point_process = call(pitch, "To PointProcess")
-        jitter_percent = call((point_process, sound), "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
-        shimmer_percent = call((point_process, sound), "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6) * 100
-        status_message = "Análise completa."
+        debug_info["point_process_criado"] = True
+        debug_info["pontos_no_process"] = point_process.get_number_of_points()
     else:
-        # Se não houver, define como 0 e avisa no status
-        jitter_percent = 0.0
-        shimmer_percent = 0.0
-        status_message = "Análise parcial: não foi possível calcular Jitter/Shimmer (áudio curto ou sem vogal sustentada)."
-    # --- FIM DA CORREÇÃO ---
+        debug_info["pitch_stats"] = "Nenhuma voz encontrada para calcular estatísticas."
 
-    # 3. HARMONICS-TO-NOISE RATIO (HNR)
-    harmonicity = sound.to_harmonicity()
-    hnr_db = call(harmonicity, "Get mean", 0, 0)
-
-    # 4. FORMANTES
-    duration = sound.get_total_duration()
-    formant = sound.to_formant_burg(time_step=0.01)
-    f1_hz = call(formant, "Get value at time", 1, duration / 2, "Hertz", "Linear")
-    f2_hz = call(formant, "Get value at time", 2, duration / 2, "Hertz", "Linear")
-
-    output_data = {
-        "status": status_message,
-        "pitch_hz": mean_pitch_hz,
-        "pitch_note": pitch_note,
-        "jitter_percent": jitter_percent,
-        "shimmer_percent": shimmer_percent,
-        "hnr_db": hnr_db,
-        "formant1_hz": f1_hz,
-        "formant2_hz": f2_hz
-    }
+    debug_info["status_depuracao"] = "Script de depuração executado com sucesso."
 
 except Exception as e:
-    output_data = {"error": str(e), "status": "Falha na análise."}
+    # Se um erro acontecer em qualquer etapa, ele será capturado aqui
+    debug_info["ERRO_OCORRIDO"] = str(e)
+    debug_info["status_depuracao"] = "Uma exceção ocorreu durante a depuração."
 
-print(json.dumps(output_data))
+# Imprime o dicionário de depuração formatado como um texto JSON
+print(json.dumps(debug_info, indent=4))
