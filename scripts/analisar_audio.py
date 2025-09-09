@@ -66,3 +66,26 @@ try:
     
     # --- ANÁLISE DE VIBRATO ---
     try:
+        point_process = call(pitch, "To PointProcess (periodic, cc)")
+        avg_period, freq_excursion, _, _, _, _, _, _ = call(
+            (sound, point_process, pitch), "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
+        )
+        results["vibrato"] = {
+            "is_present": True,
+            "rate_hz": 1 / avg_period if avg_period > 0 else 0,
+            "extent_semitones": freq_excursion
+        }
+    except Exception:
+        results["vibrato"] = {"is_present": False}
+
+    results["status"] = "Análise completa."
+
+except Exception as e:
+    results["status"] = "Falha na análise."
+    # Limpa dados parciais em caso de erro grave para não enviar JSON malformado
+    results.pop("summary", None)
+    results.pop("time_series", None)
+    results.pop("vibrato", None)
+    results["error"] = str(e)
+
+print(json.dumps(results))
