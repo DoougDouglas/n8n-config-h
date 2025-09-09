@@ -3,13 +3,18 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
+# --- NOVAS BIBLIOTECAS PARA QUEBRA DE LINHA ---
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.enums import TA_LEFT
+
 import sys
 import json
 import io
 
 # Importa a biblioteca de gráficos
 import matplotlib
-matplotlib.use('Agg') # Modo não-interativo, essencial para rodar no servidor
+matplotlib.use('Agg') # Modo não-interativo
 import matplotlib.pyplot as plt
 
 # --- DICIONÁRIO DE REFERÊNCIAS ---
@@ -28,49 +33,48 @@ def generate_recommendations(data):
     hnr = summary.get("hnr_db", 0)
     
     if hnr < 18:
-        recomendacoes.append("• Seu HNR indica uma voz com bastante soprosidade. Para um som mais 'limpo', foque em exercícios de apoio respiratório e fechamento das cordas vocais.")
+        recomendacoes.append("• Seu HNR (Qualidade Vocal) indica uma voz com bastante soprosidade. Para um som mais 'limpo', foque em exercícios de apoio respiratório e fechamento suave das cordas vocais.")
     elif hnr < 22:
-        recomendacoes.append("• Seu HNR é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância, continue praticando um fluxo de ar constante e bem apoiado.")
+        recomendacoes.append("• Seu HNR (Qualidade Vocal) é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância da sua voz, continue praticando um fluxo de ar constante e bem apoiado em suas notas.")
     else:
-        recomendacoes.append("• Seu HNR está excelente, indicando uma voz clara, 'limpa' e com ótimo apoio. Continue assim!")
+        recomendacoes.append("• Seu HNR (Qualidade Vocal) está excelente, indicando uma voz clara, 'limpa' e com ótimo apoio. Continue assim!")
     
-    # Adicione mais lógicas if/else aqui para outras métricas no futuro
     return recomendacoes
 
 def draw_pitch_contour_chart(pitch_data):
-    """Cria um gráfico de contorno de afinação com matplotlib e retorna como uma imagem em memória."""
+    """Cria um gráfico de contorno de afinação."""
     times = [p[0] for p in pitch_data if p[1] is not None]
     frequencies = [p[1] for p in pitch_data if p[1] is not None]
-    
     if not times: return None
-
-    plt.figure(figsize=(7, 2.5))
-    plt.plot(times, frequencies, color='#2E86C1', linewidth=2)
-    plt.title("Contorno da Afinação ao Longo do Tempo", fontsize=12)
-    plt.xlabel("Tempo (segundos)", fontsize=10)
-    plt.ylabel("Frequência (Hz)", fontsize=10)
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.ylim(bottom=max(0, min(frequencies) - 20), top=max(frequencies) + 20)
-    plt.tight_layout()
-    
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=150)
-    buf.seek(0)
-    plt.close()
+    plt.figure(figsize=(7, 2.5)); plt.plot(times, frequencies, color='#2E86C1', linewidth=2)
+    plt.title("Contorno da Afinação ao Longo do Tempo", fontsize=12); plt.xlabel("Tempo (segundos)", fontsize=10)
+    plt.ylabel("Frequência (Hz)", fontsize=10); plt.grid(True, linestyle='--', alpha=0.6)
+    plt.ylim(bottom=max(0, min(frequencies) - 20), top=max(frequencies) + 20); plt.tight_layout()
+    buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close()
     return buf
 
-def draw_text_section(c, y_start, title, content_list, title_color=colors.black):
+# --- NOVA FUNÇÃO PARA DESENHAR PARÁGRAFOS COM QUEBRA DE LINHA ---
+def draw_paragraph_section(c, y_start, title, content_list, title_color=colors.black):
     c.setFont("Helvetica-Bold", 14)
     c.setFillColor(title_color)
     c.drawString(50, y_start, title)
-    y_line = y_start - 10
-    c.setFont("Helvetica", 11)
-    c.setFillColor(colors.black)
-    for line in content_list:
-        y_line -= 18
-        c.drawString(60, y_line, line)
-    return y_line - 25
-
+    
+    # Prepara o estilo do parágrafo
+    styles = getSampleStyleSheet()
+    style = styles['BodyText']
+    style.fontName = 'Helvetica'
+    style.fontSize = 11
+    style.leading = 15 # Espaçamento entre linhas
+    
+    y_line = y_start - 20
+    for text_line in content_list:
+        p = Paragraph(text_line, style)
+        # Calcula a altura necessária e desenha o parágrafo
+        w, h = p.wrapOn(c, width - 110, height) # Largura máxima = página - margens
+        p.drawOn(c, 60, y_line - h)
+        y_line -= (h + 10) # Move a posição Y para baixo
+        
+    return y_line - 15
 
 # --- SCRIPT PRINCIPAL DE GERAÇÃO DE PDF ---
 json_file_path = "/tmp/cursoTutoLMS/py/data_for_report.json"
@@ -94,17 +98,14 @@ c.line(40, height-80, width-40, height-80)
 # Resumo e Classificação
 summary = data.get("summary", {})
 classificacao = data.get('classificacao', 'Indefinido')
-referencia = faixas_referencia.get(classificacao, {"pitch_min": 75, "pitch_max": 600})
-resumo_content = [
-    f"Afinação Média: {round(summary.get('pitch_hz', 0), 2)} Hz (Nota: {summary.get('pitch_note', 'N/A')})",
-    f"Intensidade Média: {round(summary.get('intensity_db', 0), 2)} dB",
-    f"Qualidade (HNR): {round(summary.get('hnr_db', 0), 2)} dB",
-    f"Classificação Sugerida: {classificacao}"
-]
-# --- INÍCIO DA CORREÇÃO ---
-# A ordem correta dos argumentos é: (canvas, y, titulo, CONTEUDO, COR)
-y = draw_text_section(c, y, "Resumo da Análise", resumo_content, colors.HexColor("#1F618D"))
-# --- FIM DA CORREÇÃO ---
+c.setFont("Helvetica-Bold", 12)
+c.drawString(50, y, "Resumo da Análise")
+c.setFont("Helvetica", 11)
+c.drawString(60, y-20, f"• Afinação Média: {round(summary.get('pitch_hz', 0), 2)} Hz (Nota: {summary.get('pitch_note', 'N/A')})")
+c.drawString(60, y-40, f"• Intensidade Média: {round(summary.get('intensity_db', 0), 2)} dB")
+c.drawString(60, y-60, f"• Qualidade (HNR): {round(summary.get('hnr_db', 0), 2)} dB")
+c.drawString(60, y-80, f"• Classificação Sugerida: {classificacao}")
+y -= 110
 
 # Gráfico de Contorno de Afinação
 pitch_contour_data = data.get("time_series", {}).get("pitch_contour", [])
@@ -114,28 +115,17 @@ if pitch_contour_data:
         c.drawImage(ImageReader(chart_buffer), 50, y - 100, width=7*cm, height=2.5*cm)
         y -= 130
 
-# Análise de Vibrato
-vibrato_info = data.get("vibrato", {})
-if vibrato_info.get("is_present"):
-    vibrato_content = [
-        f"Taxa de Modulação: {round(vibrato_info.get('rate_hz', 0), 2)} Hz (ideal: 5-7 Hz)",
-        f"Extensão da Variação: {round(vibrato_info.get('extent_semitones', 0), 2)} semitons"
-    ]
-    # --- INÍCIO DA CORREÇÃO ---
-    y = draw_text_section(c, y, "Análise de Vibrato", vibrato_content, colors.HexColor("#9B59B6"))
-    # --- FIM DA CORREÇÃO ---
-
 # Recomendações Personalizadas
 recomendacoes = generate_recommendations(data)
 if recomendacoes:
-    # --- INÍCIO DA CORREÇÃO ---
-    y = draw_text_section(c, y, "Recomendações e Dicas 💡", recomendacoes, colors.HexColor("#E67E22"))
-    # --- FIM DA CORREÇÃO ---
+    # Usamos a nova função para desenhar as recomendações, que quebra a linha
+    y = draw_paragraph_section(c, y, "Recomendações e Dicas 💡", recomendacoes, colors.HexColor("#E67E22"))
 
 # Notas Finais
 c.setFont("Helvetica-Oblique", 10); c.setFillColor(colors.dimgray)
-c.drawCentredString(width/2, 60, "Este é um relatório de biofeedback gerado por computador.")
-c.drawCentredString(width/2, 45, "Use-o como uma ferramenta para guiar sua percepção e seus estudos.")
+y = 80 # Posição fixa para o rodapé
+c.drawCentredString(width/2, y, "Este é um relatório de biofeedback gerado por computador.")
+c.drawCentredString(width/2, y-15, "Use-o como uma ferramenta para guiar sua percepção e seus estudos.")
 
 c.save()
 print(pdf_file)
