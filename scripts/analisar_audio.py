@@ -45,33 +45,24 @@ try:
 
     # --- DADOS PARA O GRÁFICO DE CONTORNO DE AFINAÇÃO ---
     pitch_values = pitch.selected_array['frequency']
-    pitch_values[pitch_values==0] = np.nan # Substitui 0s por NaN para não plotar
+    pitch_values[pitch_values==0] = np.nan # Substitui 0s por NaN (ainda necessário para numpy)
     times = pitch.xs()
+    
     # Pega no máximo 200 pontos para não sobrecarregar o JSON
     step = max(1, len(times) // 200)
+    pitch_contour_raw = list(zip(times[::step], pitch_values[::step]))
+    
+    # --- INÍCIO DA CORREÇÃO ---
+    # Substitui os valores numpy.nan pelo None do Python, que se torna 'null' no JSON
+    pitch_contour_clean = [
+        [time, (None if np.isnan(freq) else freq)] 
+        for time, freq in pitch_contour_raw
+    ]
+    # --- FIM DA CORREÇÃO ---
+
     results["time_series"] = {
-        "pitch_contour": list(zip(times[::step], pitch_values[::step]))
+        "pitch_contour": pitch_contour_clean
     }
     
     # --- ANÁLISE DE VIBRATO ---
     try:
-        point_process = call(pitch, "To PointProcess")
-        # Parâmetros padrão para análise de vibrato
-        avg_period, freq_excursion, std_dev_period, _, _, _, _, _ = call(
-            (sound, point_process, pitch), "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
-        )
-        results["vibrato"] = {
-            "is_present": True,
-            "rate_hz": 1 / avg_period if avg_period > 0 else 0, # Taxa do vibrato em Hz
-            "extent_semitones": freq_excursion # Extensão em semitons
-        }
-    except Exception:
-        results["vibrato"] = {"is_present": False}
-
-    results["status"] = "Análise completa."
-
-except Exception as e:
-    results["status"] = "Falha na análise."
-    results["error"] = str(e)
-
-print(json.dumps(results))
