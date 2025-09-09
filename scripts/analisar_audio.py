@@ -24,17 +24,17 @@ try:
     sound = parselmouth.Sound(filename)
     
     # 1. ANÁLISE DE PITCH
-    pitch = sound.to_pitch()
+    # Usamos um floor de 75 Hz e um ceiling de 600 Hz, comuns para análise vocal
+    pitch = sound.to_pitch(time_step=0.01, pitch_floor=75.0, pitch_ceiling=600.0)
     mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
     pitch_note = frequency_to_note(mean_pitch_hz)
 
     # 2. ANÁLISE DE ESTABILIDADE (JITTER E SHIMMER)
-    point_process = call(pitch, "To PointProcess")
     
     # --- INÍCIO DA CORREÇÃO ---
-    # Verifica se há pontos de pulso vocal para analisar
-    if call(point_process, "Get number of points") > 1:
-        # Se houver, calcula Jitter e Shimmer
+    # Verificação mais robusta: checa se existem quadros de voz (voiced frames)
+    if pitch.count_voiced_frames() > 1:
+        point_process = call(pitch, "To PointProcess")
         jitter_percent = call((point_process, sound), "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
         shimmer_percent = call((point_process, sound), "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6) * 100
         status_message = "Análise completa."
