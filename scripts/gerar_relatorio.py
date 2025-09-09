@@ -4,73 +4,110 @@ from reportlab.lib import colors
 import sys
 import json
 
-# --- INÍCIO DA CORREÇÃO ---
-# Corrigimos o caminho para corresponder exatamente onde o arquivo foi salvo
-json_file_path = "/tmp/cursoTutoLMS/py/data_for_report.json"
-# --- FIM DA CORREÇÃO ---
+# --- DICIONÁRIO COM FAIXAS DE REFERÊNCIA PARA COMPARAÇÃO ---
+faixas_referencia = {
+    "Baixo": {"pitch_hz": "87 - 147 Hz", "pitch_note": "F2 - D3", "hnr_db": "> 20 dB"},
+    "Barítono": {"pitch_hz": "98 - 165 Hz", "pitch_note": "G2 - F3", "hnr_db": "> 20 dB"},
+    "Tenor": {"pitch_hz": "131 - 220 Hz", "pitch_note": "C3 - A3", "hnr_db": "> 20 dB"},
+    "Contralto": {"pitch_hz": "175 - 294 Hz", "pitch_note": "F3 - D4", "hnr_db": "> 20 dB"},
+    "Mezzo-soprano": {"pitch_hz": "196 - 349 Hz", "pitch_note": "G3 - F4", "hnr_db": "> 20 dB"},
+    "Soprano": {"pitch_hz": "262 - 523 Hz", "pitch_note": "C4 - C5", "hnr_db": "> 20 dB"},
+    "Indefinido": {"pitch_hz": "N/A", "pitch_note": "N/A", "hnr_db": "> 20 dB"}
+}
 
+# --- SCRIPT DE GERAÇÃO DE PDF ---
+
+json_file_path = "/tmp/cursoTutoLMS/py/data_for_report.json"
 try:
     with open(json_file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-except FileNotFoundError:
-    print(f"Erro: O arquivo de dados {json_file_path} não foi encontrado.")
-    sys.exit(1)
-except json.JSONDecodeError:
-    print(f"Erro: O arquivo {json_file_path} não contém um JSON válido.")
+except Exception as e:
+    print(f"Erro ao ler o arquivo de dados: {e}")
     sys.exit(1)
 
 pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4
+y = height - 120 # Posição vertical inicial
 
-def draw_section(y_start, title, title_color, content_list):
+# --- FUNÇÕES DE DESENHO ---
+def draw_header():
+    c.setFillColor(colors.HexColor("#2E86C1"))
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(width/2, height-60, "🎤 Relatório Detalhado da Sua Voz 🎶")
+    c.setStrokeColor(colors.HexColor("#2E86C1"))
+    c.setLineWidth(2)
+    c.line(40, height-80, width-40, height-80)
+
+def draw_table_section(y_start, title, title_color, headers, rows):
     c.setFont("Helvetica-Bold", 14)
     c.setFillColor(title_color)
     c.drawString(50, y_start, title)
-    c.setFont("Helvetica", 12)
+    y_line = y_start - 25
+
+    # Desenha cabeçalhos da tabela
+    c.setFont("Helvetica-Bold", 11)
+    c.setFillColor(colors.dimgray)
+    c.drawString(60, y_line, headers[0])
+    c.drawString(250, y_line, headers[1])
+    c.drawString(420, y_line, headers[2])
+    y_line -= 5
+    c.line(50, y_line, width-50, y_line)
+    y_line -= 15
+
+    # Desenha linhas da tabela
+    c.setFont("Helvetica", 11)
     c.setFillColor(colors.black)
-    y_line = y_start - 20
-    for line in content_list:
-        c.drawString(60, y_line, line)
+    for row_title, user_val, ref_val in rows:
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(60, y_line, row_title)
+        c.setFont("Helvetica", 11)
+        c.drawString(250, y_line, str(user_val))
+        c.drawString(420, y_line, str(ref_val))
         y_line -= 20
-    return y_line - 20
+        
+    return y_line
 
-c.setFillColor(colors.HexColor("#2E86C1"))
-c.setFont("Helvetica-Bold", 20)
-c.drawCentredString(width/2, height-60, "🎤 Relatório Detalhado da Sua Voz 🎶")
-c.setStrokeColor(colors.HexColor("#2E86C1"))
-c.setLineWidth(2)
-c.line(40, height-80, width-40, height-80)
+# --- CONSTRUÇÃO DO PDF ---
+draw_header()
+classificacao = data.get('classificacao', 'Indefinido')
+referencia = faixas_referencia.get(classificacao, faixas_referencia["Indefinido"])
 
-y = height - 120
+# Bloco de Afinação e Qualidade
+headers = ["Métrica", "Sua Voz", "Referência"]
+pitch_rows = [
+    ("Afinação", f"{round(data.get('pitch_hz', 0), 2)} Hz", referencia["pitch_hz"]),
+    ("Nota Aprox.", data.get('pitch_note', 'N/A'), referencia["pitch_note"])
+]
+y = draw_table_section(y, "Afinação (Pitch)", colors.HexColor("#1F618D"), headers, pitch_rows)
+y += 10 # Reduz espaço
 
-pitch_hz = data.get('pitch_hz', 0)
-pitch_note = data.get('pitch_note', 'N/A')
-pitch_content = [f"Frequência Média: {round(pitch_hz, 2)} Hz", f"Nota Musical Aproximada: {pitch_note}"]
-y = draw_section(y, "Afinação (Pitch)", colors.HexColor("#1F618D"), pitch_content)
+quality_rows = [
+    ("Qualidade (HNR)", f"{round(data.get('hnr_db', 0), 2)} dB", referencia["hnr_db"]),
+    ("Intensidade Média", f"{round(data.get('intensity_db', 0), 2)} dB", "70-80 dB (fala)")
+]
+y = draw_table_section(y, "Qualidade e Intensidade", colors.HexColor("#9B59B6"), headers, quality_rows)
 
-hnr = data.get('hnr_db', 0)
-quality_content = [f"Relação Harmônico-Ruído (HNR): {round(hnr, 2)} dB"]
-y = draw_section(y, "Qualidade Vocal", colors.HexColor("#9B59B6"), quality_content)
-c.setFont("Helvetica-Oblique", 9)
-c.setFillColor(colors.dimgray)
-c.drawString(60, y + 5, "Valores altos (geralmente > 20 dB) indicam uma voz mais 'limpa', clara e ressonante.")
-y -= 20
 
-f1 = data.get('formant1_hz', 0)
-f2 = data.get('formant2_hz', 0)
-formant_content = [f"Formante 1 (F1): {round(f1, 2)} Hz", f"Formante 2 (F2): {round(f2, 2)} Hz"]
-y = draw_section(y, "Formantes (Ressonância)", colors.HexColor("#117A65"), formant_content)
+# Bloco de Formantes
+formant_rows = [
+    ("Formante 1 (F1)", f"{round(data.get('formant1_hz', 0), 2)} Hz", "Varia (vogal)"),
+    ("Formante 2 (F2)", f"{round(data.get('formant2_hz', 0), 2)} Hz", "Varia (vogal)")
+]
+y = draw_table_section(y, "Formantes (Ressonância)", colors.HexColor("#117A65"), headers, formant_rows)
 
-classificacao = data.get('classificacao', 'Não determinada')
-y = draw_section(y, "Classificação Vocal", colors.HexColor("#E67E22"), [classificacao])
+
+# Bloco de Classificação e Notas Finais
+c.setFont("Helvetica-Bold", 16)
+c.setFillColor(colors.HexColor("#E67E22"))
+c.drawString(50, y-20, f"Classificação Vocal Sugerida: {classificacao}")
 
 c.setFont("Helvetica-Oblique", 11)
 c.setFillColor(colors.black)
+y -= 60
 c.drawString(50, y, "🔎 Este relatório é gerado automaticamente com base no áudio enviado.")
 c.drawString(50, y-20, "🎶 Use-o como apoio nos seus estudos de canto.")
 c.drawString(50, y-40, "✨ Continue treinando e descubra todo o potencial da sua voz!")
 
-c.showPage()
 c.save()
 print(pdf_file)
