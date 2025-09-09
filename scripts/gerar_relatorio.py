@@ -19,7 +19,7 @@ except json.JSONDecodeError:
     print(f"Erro: O arquivo {json_file_path} não contém um JSON válido.")
     sys.exit(1)
 
-pdf_file = "/tmp/relatorio_vocal.pdf"
+pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4
 
