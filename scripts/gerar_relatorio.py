@@ -51,7 +51,7 @@ def draw_pitch_contour_chart(pitch_data):
     buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close()
     return buf
 
-# --- NOVA FUNÇÃO PARA DESENHAR O ESPECTROGRAMA ---
+# --- FUNÇÃO DO ESPECTROGRAMA COM DEBUG ---
 def draw_spectrogram(sound):
     """Cria um espectrograma do áudio e retorna como uma imagem em memória."""
     try:
@@ -72,8 +72,11 @@ def draw_spectrogram(sound):
         buf.seek(0)
         plt.close()
         return buf
-    except Exception:
-        return None
+    except Exception as e:
+        # --- A MUDANÇA ESTÁ AQUI ---
+        # Em vez de falhar silenciosamente, vamos imprimir o erro para depuração
+        print(f"DEBUG: Erro ao gerar o espectrograma: {e}", file=sys.stderr)
+        return None # Continua retornando None para não quebrar o PDF
 
 def draw_paragraph_section(c, y_start, title, content_list, title_color=colors.black):
     # (Função de parágrafo permanece a mesma)
@@ -96,7 +99,7 @@ try:
     # Carrega o áudio para usar nos gráficos
     sound = parselmouth.Sound(audio_file_path)
 except Exception as e:
-    print(f"Erro ao ler os arquivos de dados ou áudio: {e}")
+    print(f"Erro ao ler os arquivos de dados ou áudio: {e}", file=sys.stderr)
     sys.exit(1)
 
 pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
