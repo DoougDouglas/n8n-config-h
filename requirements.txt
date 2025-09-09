@@ -3,4 +3,5 @@ scipy
 librosa
 reportlab
 aubio
-praat-parselmouth==0.4.3
+praat-parselmouth
+matplotlib
