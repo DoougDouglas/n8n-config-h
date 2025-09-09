@@ -51,21 +51,26 @@ def draw_pitch_contour_chart(pitch_data):
     buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close()
     return buf
 
-# --- FUNÇÃO DO ESPECTROGRAMA COM DEBUG ---
+# --- FUNÇÃO DO ESPECTROGRAMA CORRIGIDA ---
 def draw_spectrogram(sound):
     """Cria um espectrograma do áudio e retorna como uma imagem em memória."""
     try:
         spectrogram = sound.to_spectrogram()
         plt.figure(figsize=(7, 2.5))
         
-        X, Y = spectrogram.x_grid(), spectrogram.y_grid()
         sg_db = 10 * np.log10(spectrogram.values)
         
-        plt.pcolormesh(X, Y, sg_db, shading='gouraud', cmap='viridis')
+        # --- INÍCIO DA CORREÇÃO ---
+        # Trocamos pcolormesh por imshow, que é mais robusto para este tipo de dado.
+        # Definimos o 'extent' para que os eixos (tempo e frequência) fiquem corretos.
+        plt.imshow(sg_db, cmap='viridis', aspect='auto', origin='lower', 
+                   extent=[spectrogram.xmin, spectrogram.xmax, spectrogram.ymin, spectrogram.ymax])
+        # --- FIM DA CORREÇÃO ---
+        
         plt.title("Espectrograma (Impressão Digital da Voz)", fontsize=12)
         plt.xlabel("Tempo (segundos)", fontsize=10)
         plt.ylabel("Frequência (Hz)", fontsize=10)
-        plt.ylim(top=3500) # Foca nas frequências mais relevantes para a voz
+        plt.ylim(top=3500)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=150)
@@ -73,10 +78,8 @@ def draw_spectrogram(sound):
         plt.close()
         return buf
     except Exception as e:
-        # --- A MUDANÇA ESTÁ AQUI ---
-        # Em vez de falhar silenciosamente, vamos imprimir o erro para depuração
         print(f"DEBUG: Erro ao gerar o espectrograma: {e}", file=sys.stderr)
-        return None # Continua retornando None para não quebrar o PDF
+        return None
 
 def draw_paragraph_section(c, y_start, title, content_list, title_color=colors.black):
     # (Função de parágrafo permanece a mesma)
@@ -91,12 +94,11 @@ def draw_paragraph_section(c, y_start, title, content_list, title_color=colors.b
 
 # --- SCRIPT PRINCIPAL DE GERAÇÃO DE PDF ---
 json_file_path = "/tmp/cursoTutoLMS/py/data_for_report.json"
-audio_file_path = "/tmp/cursoTutoLMS/py/audio-aluno.wav" # Caminho do áudio
+audio_file_path = "/tmp/cursoTutoLMS/py/audio-aluno.wav"
 
 try:
     with open(json_file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    # Carrega o áudio para usar nos gráficos
     sound = parselmouth.Sound(audio_file_path)
 except Exception as e:
     print(f"Erro ao ler os arquivos de dados ou áudio: {e}", file=sys.stderr)
@@ -123,7 +125,7 @@ c.drawString(60, y-60, f"• Qualidade (HNR): {round(summary.get('hnr_db', 0), 2
 c.drawString(60, y-80, f"• Classificação Sugerida: {classificacao}")
 y -= 110
 
-# --- ADIÇÃO DO GRÁFICO DE ESPECTROGRAMA ---
+# Gráfico de Espectrograma
 spectrogram_buffer = draw_spectrogram(sound)
 if spectrogram_buffer:
     c.drawImage(ImageReader(spectrogram_buffer), 50, y - 100, width=7*cm, height=2.5*cm)
