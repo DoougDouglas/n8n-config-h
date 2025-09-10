@@ -33,9 +33,10 @@ try:
 
     if exercise_type == "teste_vogais":
         # --- INÍCIO DA CORREÇÃO ---
-        # Simplificamos a chamada, removendo os argumentos de texto que estavam causando a confusão.
-        # O Praat usará os valores padrão "silent" e "sounding".
-        silences = call(sound, "To TextGrid (silences)", 100, -25, 0.1, 0.1)
+        # Criamos um objeto de Intensidade primeiro, que é o método mais robusto
+        intensity = sound.to_intensity()
+        # Em seguida, criamos o TextGrid a partir da intensidade para detectar os silêncios
+        silences = call(intensity, "To TextGrid (silences)", -25, 0.1, 0.1, "silent", "sounding")
         # --- FIM DA CORREÇÃO ---
         
         num_intervals = call(silences, "Get number of intervals", 2)
