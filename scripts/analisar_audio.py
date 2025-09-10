@@ -30,7 +30,7 @@ try:
     intensity_db = sound.get_intensity()
     hnr_db = call(sound.to_harmonicity(), "Get mean", 0, 0)
     
-    duration = sound.get_total_duration() # <-- DURAÇÃO TOTAL DO ÁUDIO (TMF)
+    duration = sound.get_total_duration()
     
     formant = sound.to_formant_burg()
     f1_hz = call(formant, "Get value at time", 1, duration / 2, "Hertz", "Linear")
@@ -42,12 +42,12 @@ try:
         "pitch_note": pitch_note,
         "intensity_db": intensity_db,
         "hnr_db": hnr_db,
-        "duration_seconds": duration, # <-- Adicionado ao resultado
+        "duration_seconds": duration,
         "formant1_hz": f1_hz,
         "formant2_hz": f2_hz
     }
 
-    # (Restante do código para time_series e vibrato permanece igual)
+    # (Restante do código para time_series e vibrato)
     pitch_values = pitch.selected_array['frequency']
     pitch_values[pitch_values==0] = np.nan
     times = pitch.xs()
@@ -63,9 +63,17 @@ try:
         results["vibrato"] = {"is_present": True, "rate_hz": 1 / avg_period if avg_period > 0 else 0, "extent_semitones": freq_excursion}
     except Exception:
         results["vibrato"] = {"is_present": False}
+    
     results["status"] = "Análise completa."
 
+# --- INÍCIO DA CORREÇÃO ---
+# A linha abaixo estava com um erro de sintaxe.
+# A forma correta é redefinir o dicionário 'results' em caso de erro.
 except Exception as e:
-    results["status": "Falha na análise.", "error": str(e)}
+    results = {
+        "status": "Falha na análise.",
+        "error": str(e)
+    }
+# --- FIM DA CORREÇÃO ---
 
 print(json.dumps(results))
