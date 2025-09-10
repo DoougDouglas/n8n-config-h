@@ -20,20 +20,24 @@ import matplotlib.pyplot as plt
 # --- FUNÇÕES DE LÓGICA E DESENHO ---
 
 def generate_recommendations(data):
-    # (Função de recomendações sem alterações)
     recomendacoes = []
     summary = data.get("summary", {})
     hnr = summary.get("hnr_db", 0)
+    tmf = summary.get("duration_seconds", 0)
+
     if hnr < 18:
         recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado indica uma voz com bastante soprosidade. Para um som mais 'limpo', foque em exercícios de apoio respiratório e fechamento suave das cordas vocais.")
     elif hnr < 22:
         recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância da sua voz, continue praticando um fluxo de ar constante e bem apoiado em suas notas.")
     else:
-        recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara, 'limpa' e com ótimo apoio. Continue assim!")
+        recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara e com ótimo apoio. Continue assim!")
+    
+    if tmf > 5 and tmf < 12: # Só dá feedback de TMF se o áudio for longo o suficiente
+        recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está abaixo do esperado. Isso pode indicar falta de apoio respiratório. Pratique exercícios de sustentação de notas para melhorar seu controle do ar e eficiência vocal.")
+
     return recomendacoes
 
 def draw_pitch_contour_chart(pitch_data):
-    # (Função de gráfico sem alterações)
     times = [p[0] for p in pitch_data if p[1] is not None]
     frequencies = [p[1] for p in pitch_data if p[1] is not None]
     if not times or len(times) < 2: return None
@@ -45,7 +49,6 @@ def draw_pitch_contour_chart(pitch_data):
     return buf
 
 def draw_spectrogram(sound):
-    # (Função de espectrograma sem alterações)
     try:
         spectrogram = sound.to_spectrogram(); plt.figure(figsize=(10, 3.5))
         sg_db = 10 * np.log10(spectrogram.values)
@@ -58,7 +61,6 @@ def draw_spectrogram(sound):
 
 # --- SCRIPT PRINCIPAL DE GERAÇÃO DE PDF (COM LÓGICA MULTI-PÁGINA) ---
 
-# --- CONFIGURAÇÕES E CARREGAMENTO DE DADOS ---
 json_file_path = "/tmp/cursoTutoLMS/py/data_for_report.json"
 audio_file_path = "/tmp/cursoTutoLMS/py/audio-aluno.wav" 
 try:
@@ -69,26 +71,22 @@ except Exception as e:
 
 pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
-width, height = A4
-margin = 50
-available_width = width - (2 * margin)
+width, height = A4; margin = 50; available_width = width - (2 * margin)
 
-# --- NOVA FUNÇÃO PARA GERENCIAR QUEBRA DE PÁGINA ---
 def check_page_break(y_pos, needed_height):
     """Verifica se há espaço, se não, cria uma nova página e retorna a nova posição Y."""
     if y_pos - needed_height < margin:
-        c.showPage() # Finaliza a página atual
-        c.setFont("Helvetica", 11) # Reseta a fonte para a nova página
-        return height - margin # Retorna a posição Y no topo da nova página
-    return y_pos # Retorna a posição Y atual se houver espaço
+        c.showPage(); c.setFont("Helvetica", 11)
+        return height - margin
+    return y_pos
 
 # --- INÍCIO DA CONSTRUÇÃO DO PDF ---
 y = height - 70 # Posição vertical inicial
 
 # 1. Cabeçalho
 c.setFillColor(colors.HexColor("#2E86C1")); c.setFont("Helvetica-Bold", 20)
-c.drawCentredString(width/2, y, "🎤 Relatório de Biofeedback Vocal 🎶")
-y -= 20; c.setStrokeColor(colors.HexColor("#2E86C1")); c.setLineWidth(1)
+c.drawCentredString(width/2, y, "🎤 Relatório de Biofeedback Vocal 🎶"); y -= 20
+c.setStrokeColor(colors.HexColor("#2E86C1")); c.setLineWidth(1)
 c.line(40, y, width-40, y); y -= 40
 
 # 2. Resumo da Análise
@@ -110,8 +108,9 @@ for line in resumo_content:
     y = check_page_break(y, h); p.drawOn(c, margin, y - h); y -= (h + 5)
 y -= 20
 
+# --- INÍCIO DA CORREÇÃO DE TEXTO ---
 # 3. Gráfico de Espectrograma e Explicação
-height_spectrogram_block = 190 # Altura estimada do bloco do espectrograma
+height_spectrogram_block = 190 
 y = check_page_break(y, height_spectrogram_block)
 c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#117A65"))
 c.drawString(margin, y, "Análise de Timbre e Projeção"); y -= 15
@@ -119,15 +118,21 @@ spectrogram_buffer = draw_spectrogram(sound)
 if spectrogram_buffer:
     img = ImageReader(spectrogram_buffer); img_width, img_height = img.getSize(); aspect = img_height / float(img_width)
     img_h = available_width * aspect
-    c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
-    y -= (img_h + 15)
+    c.drawImage(img, margin, y - img_h, width=available_width, height=img_h); y -= (img_h + 15)
+    
     explanation_style = ParagraphStyle(name='Explicação', parent=styles['BodyText'], fontName='Helvetica-Oblique', fontSize=10, leading=12)
-    explanation_text = """O <b>Espectrograma</b> acima é a "impressão digital" da sua voz... (texto da explicação)"""
+    # SUBSTITUÍDO O TEXTO DO RASCUNHO PELO TEXTO COMPLETO
+    explanation_text = """
+    O <b>Espectrograma</b> acima é a "impressão digital" da sua voz, mostrando todas as frequências do seu som. Procure por faixas horizontais de energia: a mais baixa é sua nota fundamental, e as de cima são os harmônicos que dão a "cor" ao seu timbre.
+    <br/><br/>
+    Cantores profissionais desenvolvem o <b>"Formante do Cantor"</b>, uma concentração de energia na faixa de 2500-3500 Hz (uma faixa amarela/brilhante na parte de cima do gráfico). Isso é o que dá brilho e projeção à voz, permitindo que ela seja ouvida sobre uma orquestra.
+    """
     p = Paragraph(explanation_text, explanation_style); w, h = p.wrapOn(c, available_width, height)
     p.drawOn(c, margin, y - h); y -= (h + 25)
+# --- FIM DA CORREÇÃO DE TEXTO ---
 
 # 4. Gráfico de Contorno de Afinação
-height_pitch_block = 170 # Altura estimada do bloco de afinação
+height_pitch_block = 170
 y = check_page_break(y, height_pitch_block)
 c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
 c.drawString(margin, y, "Análise de Afinação e Estabilidade"); y -= 15
@@ -144,6 +149,7 @@ if pitch_contour_data:
 recomendacoes = generate_recommendations(data)
 if recomendacoes:
     style = ParagraphStyle(name='Recomendações', parent=styles['BodyText'], fontName='Helvetica', fontSize=11, leading=15)
+    # Mede a altura necessária para as recomendações
     p_list = [Paragraph(line, style) for line in recomendacoes]
     total_h = sum([p.wrapOn(c, available_width, height)[1] for p in p_list]) + len(p_list)*10
     y = check_page_break(y, total_h + 40)
