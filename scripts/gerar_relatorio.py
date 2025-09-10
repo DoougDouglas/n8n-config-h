@@ -5,7 +5,7 @@ from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from reportlab.lib.enums import TA_LEFT
 import sys
 import json
 import io
@@ -25,7 +25,6 @@ def generate_recommendations(data):
     summary = data.get("summary", {})
     exercise_type = data.get("exercise_type", "")
     
-    # Feedback para o exercício de Qualidade/Sustentação
     if exercise_type == "sustentacao_vogal":
         hnr = summary.get("hnr_db", 0)
         if hnr < 18:
@@ -33,19 +32,17 @@ def generate_recommendations(data):
         elif hnr < 22:
             recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância da sua voz, continue praticando um fluxo de ar constante e bem apoiado em suas notas.")
         else:
-            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara, 'limpa' e com ótimo apoio. Continue assim!")
+            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara e com ótimo apoio. Continue assim!")
 
-    # Feedback para o Teste de Resistência
     if exercise_type == "resistencia_tmf":
         tmf = summary.get("duration_seconds", 0)
         if tmf < 15:
-            recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está abaixo da média para adultos (15-25s). Pratique exercícios de respiração diafragmática e sustentação de notas para melhorar seu controle do ar e a eficiência do fechamento das cordas vocais.")
+            recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está abaixo da média para adultos (15-25s). Pratique exercícios de respiração diafragmática e sustentação de notas para melhorar seu controle do ar.")
         else:
             recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está excelente, demonstrando ótimo controle do fluxo de ar e apoio respiratório.")
 
-    # Feedback para o Teste de Vogais
     if exercise_type == "teste_vogais":
-        recomendacoes.append("• <b>Clareza da Dicção:</b> Observe no gráfico se suas vogais estão bem definidas e separadas, formando um triângulo amplo. Quanto maior a área do triângulo entre 'A', 'I' e 'U', mais clara e distinta é a sua articulação.")
+        recomendacoes.append("• <b>Clareza da Dicção:</b> Observe no gráfico se suas vogais estão bem definidas e separadas. Quanto maior a área do triângulo entre 'A', 'I' e 'U', mais clara e distinta é a sua articulação.")
 
     if not recomendacoes:
         recomendacoes.append("• Análise concluída com sucesso. Continue praticando para acompanhar sua evolução!")
@@ -77,29 +74,33 @@ def draw_spectrogram(sound):
     except Exception: return None
 
 def draw_vowel_space_chart(vowel_data):
-    """Cria um gráfico F1 vs F2 do espaço vocálico."""
+    """Cria um gráfico F1 vs F2 do espaço vocálico, com o triângulo."""
     vogais = ['a', 'e', 'i', 'o', 'u']
     f1_vals = [vowel_data.get(v, {}).get('f1') for v in vogais]
     f2_vals = [vowel_data.get(v, {}).get('f2') for v in vogais]
     
     if any(v is None for v in f1_vals) or any(v is None for v in f2_vals): return None
 
-    plt.figure(figsize=(6, 6))
-    plt.scatter(f2_vals, f1_vals, s=100, c='#2E86C1', zorder=10)
-    for i, txt in enumerate(vogais):
-        plt.annotate(txt.upper(), (f2_vals[i] + 30, f1_vals[i] + 10), fontsize=12, fontweight='bold')
-        
-    triangle_f2 = [f2_vals[0], f2_vals[2], f2_vals[4], f2_vals[0]]
-    triangle_f1 = [f1_vals[0], f1_vals[2], f1_vals[4], f1_vals[0]]
-    plt.plot(triangle_f2, triangle_f1, color='lightgray', linestyle='--', zorder=5)
-
-    plt.xlabel("Formante 2 (F2) - Anterioridade da Língua →"); plt.ylabel("Formante 1 (F1) - Altura da Língua →")
-    plt.title("Mapa do Seu Espaço Vocálico", fontsize=14); plt.grid(True, linestyle='--', alpha=0.5)
+    fig, ax = plt.subplots(figsize=(6, 6))
     
-    plt.gca().invert_xaxis(); plt.gca().invert_yaxis()
+    ax.scatter(f2_vals, f1_vals, s=100, c='#2E86C1', zorder=10)
+    for i, txt in enumerate(vogais):
+        ax.annotate(txt.upper(), (f2_vals[i] + 30, f1_vals[i] + 10), fontsize=12, fontweight='bold')
+        
+    if all(v is not None for v in [f1_vals[0], f1_vals[2], f1_vals[4], f2_vals[0], f2_vals[2], f2_vals[4]]):
+        triangle_f2 = [f2_vals[0], f2_vals[2], f2_vals[4], f2_vals[0]]
+        triangle_f1 = [f1_vals[0], f1_vals[2], f1_vals[4], f1_vals[0]]
+        ax.plot(triangle_f2, triangle_f1, color='gray', linestyle='--', zorder=5, linewidth=2)
+
+    ax.set_xlabel("Formante 2 (F2) - Anterioridade da Língua →")
+    ax.set_ylabel("Formante 1 (F1) - Altura da Língua →")
+    ax.set_title("Mapa do Seu Espaço Vocálico", fontsize=14)
+    ax.grid(True, linestyle='--', alpha=0.5)
+    
+    ax.invert_xaxis(); ax.invert_yaxis()
     plt.tight_layout()
     
-    buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close()
+    buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close(fig)
     return buf
 
 def draw_paragraph(c, y_start, text_list, style, available_width):
@@ -110,7 +111,7 @@ def draw_paragraph(c, y_start, text_list, style, available_width):
         w, h = p.wrapOn(c, available_width, height)
         y_line -= h
         p.drawOn(c, margin, y_line)
-        y_line -= 10 # Espaçamento entre parágrafos
+        y_line -= 10
     return y_line
 
 # --- SCRIPT PRINCIPAL DE GERAÇÃO DE PDF ---
@@ -125,32 +126,40 @@ except Exception as e:
 pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4; margin = 50; available_width = width - (2 * margin)
+
+def check_page_break(y_pos, needed_height):
+    """Verifica se há espaço, se não, cria uma nova página."""
+    nonlocal c
+    if y_pos - needed_height < margin:
+        c.showPage()
+        c.setFont("Helvetica", 11)
+        return height - margin
+    return y_pos
+
+# --- INÍCIO DA CONSTRUÇÃO DO PDF ---
 y = height - 70
 
+# Cabeçalho
 exercise_type = data.get('exercise_type', 'sustentacao_vogal')
+c.setFillColor(colors.HexColor("#2E86C1")); c.setFont("Helvetica-Bold", 20)
+c.drawCentredString(width/2, y, f"🎤 Relatório de Exercício: {exercise_type.replace('_', ' ').title()} 🎶")
+y -= 20; c.line(40, y, width-40, y); y -= 40
 summary = data.get("summary", {})
 classificacao = data.get('classificacao', 'Indefinido')
 styles = getSampleStyleSheet()
 
-# Cabeçalho
-c.setFillColor(colors.HexColor("#2E86C1")); c.setFont("Helvetica-Bold", 20)
-c.drawCentredString(width/2, y, f"🎤 Relatório de Exercício: {exercise_type.replace('_', ' ').title()} 🎶")
-y -= 20; c.line(40, y, width-40, y); y -= 40
-
 # --- LÓGICA PARA MONTAR O PDF CORRETO ---
 if exercise_type == "teste_vogais":
-    # --- LAYOUT PARA O RELATÓRIO DE VOGAIS ---
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
     c.drawString(margin, y, "Análise da Clareza e Dicção"); y -= 15
     
     vowel_chart_buffer = draw_vowel_space_chart(data.get("vowel_space_data", {}))
     if vowel_chart_buffer:
         img_h = available_width * 0.95
-        c.drawImage(ImageReader(vowel_chart_buffer), margin, y - img_h, width=available_width, height=img_h, preserveAspectRatio=True, anchor='n')
+        y = check_page_break(y, img_h); c.drawImage(ImageReader(vowel_chart_buffer), margin, y - img_h, width=available_width, height=img_h, preserveAspectRatio=True, anchor='n')
         y -= (img_h + 15)
     
 elif exercise_type == "resistencia_tmf":
-    # --- LAYOUT PARA O RELATÓRIO DE RESISTÊNCIA ---
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
     c.drawString(margin, y, "Resumo da Análise de Resistência"); y -= 15
     style = ParagraphStyle(name='Resumo', fontName='Helvetica', fontSize=12, leading=20)
@@ -169,10 +178,9 @@ elif exercise_type == "resistencia_tmf":
         if chart_buffer:
             img = ImageReader(chart_buffer); img_width, img_height = img.getSize(); aspect = img_height / float(img_width)
             img_h = available_width * aspect
-            c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
+            y = check_page_break(y, img_h); c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
             y -= (img_h + 30)
-else: # PADRÃO: LAYOUT PARA SUSTENTAÇÃO DE VOGAL (QUALIDADE)
-    # --- LAYOUT COMPLETO QUE JÁ TEMOS ---
+else: # PADRÃO: SUSTENTAÇÃO DE VOGAL
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
     c.drawString(margin, y, "Resumo da Análise"); y -= 15
     style = ParagraphStyle(name='Resumo', fontName='Helvetica', fontSize=11, leading=18)
@@ -187,10 +195,12 @@ else: # PADRÃO: LAYOUT PARA SUSTENTAÇÃO DE VOGAL (QUALIDADE)
     y = draw_paragraph(c, y, resumo_content, style, available_width)
     y -= 20
     
+    # Adiciona Gráficos
     spectrogram_buffer = draw_spectrogram(sound)
     if spectrogram_buffer:
         img = ImageReader(spectrogram_buffer); img_width, img_height = img.getSize(); aspect = img_height / float(img_width)
         img_h = available_width * aspect
+        y = check_page_break(y, img_h + 30); c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#117A65")); c.drawString(margin, y, "Análise de Timbre e Projeção"); y -= 15
         c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
         y -= (img_h + 30)
 
@@ -200,16 +210,22 @@ else: # PADRÃO: LAYOUT PARA SUSTENTAÇÃO DE VOGAL (QUALIDADE)
         if chart_buffer:
             img = ImageReader(chart_buffer); img_width, img_height = img.getSize(); aspect = img_height / float(img_width)
             img_h = available_width * aspect
+            y = check_page_break(y, img_h + 30); c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D")); c.drawString(margin, y, "Análise de Afinação e Estabilidade"); y -= 15
             c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
             y -= (img_h + 30)
 
 # Recomendações (comum a todos os relatórios)
 recomendacoes = generate_recommendations(data)
 if recomendacoes:
+    style = ParagraphStyle(name='Recomendacoes', parent=styles['BodyText'], fontName='Helvetica', fontSize=11, leading=15)
+    # Mede a altura necessária
+    p_list = [Paragraph(line, style) for line in recomendacoes]
+    total_h = sum([p.wrapOn(c, available_width, height)[1] for p in p_list]) + len(p_list)*10
+    y = check_page_break(y, total_h + 40)
+    
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#E67E22"))
     c.drawString(margin, y, "Recomendações e Dicas 💡"); y -= 15
-    style = ParagraphStyle(name='Recomendacoes', parent=styles['BodyText'], fontName='Helvetica', fontSize=11, leading=15)
-    draw_paragraph(c, y, recomendacoes, style, available_width)
+    y = draw_paragraph(c, y, recomendacoes, style, available_width)
 
 c.save()
 print(pdf_file)
