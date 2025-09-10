@@ -14,11 +14,13 @@ import io
 import parselmouth
 import numpy as np
 import matplotlib
-matplotlib.use('Agg') # Modo não-interativo
+matplotlib.use('Agg') # Modo não-interativo, essencial para rodar no servidor
 import matplotlib.pyplot as plt
 
 # --- FUNÇÕES DE LÓGICA E DESENHO ---
+
 def generate_recommendations(data):
+    """Gera dicas personalizadas com base nos dados e no tipo de exercício."""
     recomendacoes = []
     summary = data.get("summary", {})
     exercise_type = data.get("exercise_type", "")
@@ -26,28 +28,29 @@ def generate_recommendations(data):
     if exercise_type == "sustentacao_vogal":
         hnr = summary.get("hnr_db", 0)
         if hnr < 18:
-            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado indica uma voz com bastante soprosidade. Para um som mais 'limpo', foque em exercícios de apoio respiratório e fechamento suave das cordas vocais.")
+            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado indica uma voz com bastante soprosidade (ar na voz). Para um som mais 'limpo', foque em exercícios de apoio respiratório e fechamento suave das cordas vocais.")
         elif hnr < 22:
-            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância, continue praticando um fluxo de ar constante e bem apoiado.")
+            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância da sua voz, continue praticando um fluxo de ar constante e bem apoiado em suas notas.")
         else:
-            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara e com ótimo apoio!")
+            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara, 'limpa' e com ótimo apoio. Continue assim!")
 
     if exercise_type == "resistencia_tmf":
         tmf = summary.get("duration_seconds", 0)
         if tmf < 15:
-            recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está abaixo da média. Pratique exercícios de respiração para melhorar seu controle do ar.")
+            recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está abaixo da média para adultos (15-25s). Pratique exercícios de respiração diafragmática e sustentação de notas para melhorar seu controle do ar.")
         else:
-            recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está excelente, demonstrando ótimo controle do fluxo de ar.")
+            recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está excelente, demonstrando ótimo controle do fluxo de ar e apoio respiratório.")
 
     if exercise_type == "teste_vogais":
-        recomendacoes.append("• <b>Clareza da Dicção:</b> Observe no gráfico se suas vogais estão bem definidas. Um 'triângulo vocálico' (entre A, I, U) amplo indica uma articulação clara.")
+        recomendacoes.append("• <b>Clareza da Dicção:</b> Observe no gráfico se suas vogais estão bem definidas e separadas. Quanto maior a área do triângulo entre 'A', 'I' e 'U', mais clara e distinta é a sua articulação.")
 
     if not recomendacoes:
-        recomendacoes.append("• Análise concluída com sucesso. Continue praticando!")
+        recomendacoes.append("• Análise concluída com sucesso. Continue praticando para acompanhar sua evolução!")
         
     return recomendacoes
 
 def draw_pitch_contour_chart(pitch_data):
+    """Cria um gráfico de contorno de afinação."""
     times = [p[0] for p in pitch_data if p[1] is not None]
     frequencies = [p[1] for p in pitch_data if p[1] is not None]
     if not times or len(times) < 2: return None
@@ -59,6 +62,7 @@ def draw_pitch_contour_chart(pitch_data):
     return buf
 
 def draw_spectrogram(sound):
+    """Cria um espectrograma do áudio."""
     try:
         spectrogram = sound.to_spectrogram(); plt.figure(figsize=(10, 3.5))
         sg_db = 10 * np.log10(spectrogram.values)
@@ -70,26 +74,35 @@ def draw_spectrogram(sound):
     except Exception: return None
 
 def draw_vowel_space_chart(vowel_data):
+    """Cria um gráfico F1 vs F2 do espaço vocálico, com o triângulo."""
     vogais = ['a', 'e', 'i', 'o', 'u']
     f1_vals = [vowel_data.get(v, {}).get('f1') for v in vogais]
     f2_vals = [vowel_data.get(v, {}).get('f2') for v in vogais]
+    
     if any(v is None for v in f1_vals) or any(v is None for v in f2_vals): return None
+
     fig, ax = plt.subplots(figsize=(6, 6))
+    
     ax.scatter(f2_vals, f1_vals, s=100, c='#2E86C1', zorder=10)
     for i, txt in enumerate(vogais):
         ax.annotate(txt.upper(), (f2_vals[i] + 30, f1_vals[i] + 10), fontsize=12, fontweight='bold')
+        
     if all(v is not None for v in [f1_vals[0], f1_vals[2], f1_vals[4], f2_vals[0], f2_vals[2], f2_vals[4]]):
         triangle_f2 = [f2_vals[0], f2_vals[2], f2_vals[4], f2_vals[0]]
         triangle_f1 = [f1_vals[0], f1_vals[2], f1_vals[4], f1_vals[0]]
         ax.plot(triangle_f2, triangle_f1, color='gray', linestyle='--', zorder=5, linewidth=2)
+
     ax.set_xlabel("Formante 2 (F2) - Anterioridade da Língua →"); ax.set_ylabel("Formante 1 (F1) - Altura da Língua →")
     ax.set_title("Mapa do Seu Espaço Vocálico", fontsize=14); ax.grid(True, linestyle='--', alpha=0.5)
+    
     ax.invert_xaxis(); ax.invert_yaxis()
     plt.tight_layout()
+    
     buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close(fig)
     return buf
 
 def draw_paragraph(c, y_start, text_list, style, available_width):
+    """Desenha uma lista de parágrafos e retorna a nova posição Y."""
     y_line = y_start
     for line in text_list:
         p = Paragraph(line, style)
@@ -113,6 +126,7 @@ c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4; margin = 50; available_width = width - (2 * margin)
 
 def check_page_break(y_pos, needed_height):
+    """Verifica se há espaço, se não, cria uma nova página e retorna a nova posição Y."""
     if y_pos - needed_height < margin:
         c.showPage()
         c.setFont("Helvetica", 11)
