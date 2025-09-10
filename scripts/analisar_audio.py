@@ -25,28 +25,29 @@ try:
     
     # --- DADOS DE RESUMO ---
     mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
-    stdev_pitch_hz = call(pitch, "Get standard deviation", 0, 0, "Hertz") # Desvio Padrão
-    
+    stdev_pitch_hz = call(pitch, "Get standard deviation", 0, 0, "Hertz")
     pitch_note = frequency_to_note(mean_pitch_hz)
     intensity_db = sound.get_intensity()
     hnr_db = call(sound.to_harmonicity(), "Get mean", 0, 0)
     
-    duration = sound.get_total_duration()
+    duration = sound.get_total_duration() # <-- DURAÇÃO TOTAL DO ÁUDIO (TMF)
+    
     formant = sound.to_formant_burg()
     f1_hz = call(formant, "Get value at time", 1, duration / 2, "Hertz", "Linear")
     f2_hz = call(formant, "Get value at time", 2, duration / 2, "Hertz", "Linear")
 
     results["summary"] = {
         "pitch_hz": mean_pitch_hz,
-        "stdev_pitch_hz": stdev_pitch_hz, 
+        "stdev_pitch_hz": stdev_pitch_hz,
         "pitch_note": pitch_note,
         "intensity_db": intensity_db,
         "hnr_db": hnr_db,
+        "duration_seconds": duration, # <-- Adicionado ao resultado
         "formant1_hz": f1_hz,
         "formant2_hz": f2_hz
     }
 
-    # (Restante do código para time_series e vibrato)
+    # (Restante do código para time_series e vibrato permanece igual)
     pitch_values = pitch.selected_array['frequency']
     pitch_values[pitch_values==0] = np.nan
     times = pitch.xs()
@@ -65,8 +66,6 @@ try:
     results["status"] = "Análise completa."
 
 except Exception as e:
-    results["status"] = "Falha na análise."
-    results.pop("summary", None); results.pop("time_series", None); results.pop("vibrato", None)
-    results["error"] = str(e)
+    results["status": "Falha na análise.", "error": str(e)}
 
 print(json.dumps(results))
