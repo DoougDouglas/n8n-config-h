@@ -5,50 +5,33 @@ from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_LEFT
 import sys
 import json
 import io
-
-# Importa as bibliotecas de análise e gráficos
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import parselmouth
 import numpy as np
-import matplotlib
-matplotlib.use('Agg') # Modo não-interativo, essencial para rodar no servidor
-import matplotlib.pyplot as plt
 
 # --- FUNÇÕES DE LÓGICA E DESENHO ---
-
 def generate_recommendations(data):
-    """Gera dicas personalizadas com base nos dados da análise."""
     recomendacoes = []
     summary = data.get("summary", {})
     hnr = summary.get("hnr_db", 0)
-    tmf = summary.get("duration_seconds", 0)
-
-    # Apenas dá feedback de HNR para o exercício de sustentação
-    if data.get("exercise_type") == "sustentacao_vogal":
-        if hnr < 18:
-            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado indica uma voz com bastante soprosidade. Para um som mais 'limpo', foque em exercícios de apoio respiratório e fechamento suave das cordas vocais.")
-        elif hnr < 22:
-            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância da sua voz, continue praticando um fluxo de ar constante e bem apoiado em suas notas.")
-        else:
-            recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara e com ótimo apoio. Continue assim!")
+    if hnr < 18:
+        recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado indica uma voz com bastante soprosidade. Para um som mais 'limpo', foque em exercícios de apoio respiratório e fechamento suave das cordas vocais.")
+    elif hnr < 22:
+        recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância da sua voz, continue praticando um fluxo de ar constante e bem apoiado em suas notas.")
+    else:
+        recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara, 'limpa' e com ótimo apoio. Continue assim!")
     
-    # Apenas dá feedback de TMF se o áudio for longo (indicando um teste de resistência)
-    if tmf > 10: 
-        if tmf < 15:
-            recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está um pouco abaixo do esperado para adultos. Pratique exercícios de sustentação para melhorar seu controle do ar.")
-        else:
-            recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está excelente, demonstrando ótimo controle e apoio respiratório.")
-
-    if not recomendacoes:
-        recomendacoes.append("• Análise concluída com sucesso. Continue praticando para acompanhar sua evolução!")
+    if data.get("exercise_type") == "resistencia_tmf" and summary.get("duration_seconds", 0) < 12:
+        recomendacoes.append("• <b>Eficiência Respiratória (TMF):</b> Seu tempo de fonação está abaixo do esperado. Pratique exercícios de sustentação de notas para melhorar seu controle do ar.")
         
     return recomendacoes
 
 def draw_pitch_contour_chart(pitch_data):
-    """Cria um gráfico de contorno de afinação."""
     times = [p[0] for p in pitch_data if p[1] is not None]
     frequencies = [p[1] for p in pitch_data if p[1] is not None]
     if not times or len(times) < 2: return None
@@ -60,7 +43,6 @@ def draw_pitch_contour_chart(pitch_data):
     return buf
 
 def draw_spectrogram(sound):
-    """Cria um espectrograma do áudio."""
     try:
         spectrogram = sound.to_spectrogram(); plt.figure(figsize=(10, 3.5))
         sg_db = 10 * np.log10(spectrogram.values)
@@ -95,19 +77,18 @@ c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4; margin = 50; available_width = width - (2 * margin)
 y = height - 70
 
-# --- LÓGICA CONDICIONAL ---
 exercise_type = data.get('exercise_type', 'sustentacao_vogal')
 summary = data.get("summary", {})
 classificacao = data.get('classificacao', 'Indefinido')
 styles = getSampleStyleSheet()
 
-# CABEÇALHO
+# Cabeçalho
 c.setFillColor(colors.HexColor("#2E86C1")); c.setFont("Helvetica-Bold", 20)
 c.drawCentredString(width/2, y, f"🎤 Relatório de Exercício: {exercise_type.replace('_', ' ').title()} 🎶")
 y -= 20; c.setStrokeColor(colors.HexColor("#2E86C1")); c.setLineWidth(1)
 c.line(40, y, width-40, y); y -= 40
 
-# --- MONTA O PDF DE ACORDO COM O EXERCÍCIO ---
+# --- LÓGICA PARA MONTAR O PDF CORRETO ---
 if exercise_type == "escala_5_notas":
     # --- LAYOUT PARA O RELATÓRIO DE ESCALA ---
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
@@ -129,7 +110,7 @@ if exercise_type == "escala_5_notas":
             img_h = available_width * aspect
             c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
             y -= (img_h + 30)
-else: 
+else:
     # --- LAYOUT PADRÃO PARA SUSTENTAÇÃO DE VOGAL ---
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
     c.drawString(margin, y, "Resumo da Análise"); y -= 15
@@ -161,11 +142,14 @@ else:
             c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
             y -= (img_h + 30)
 
-# Recomendações (comum a todos os relatórios)
+# --- CORREÇÃO AQUI ---
+# Chamando a função com o nome correto: 'draw_paragraph'
 recomendacoes = generate_recommendations(data)
 if recomendacoes:
+    c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#E67E22"));
+    c.drawString(50, y, "Recomendações e Dicas 💡"); y -= 15
     style = ParagraphStyle(name='Recomendacoes', fontName='Helvetica', fontSize=11, leading=15)
-    y = draw_paragraph_section(c, y, "Recomendações e Dicas 💡", recomendacoes, colors.HexColor("#E67E22"), style)
+    y = draw_paragraph(c, y, recomendacoes, style)
 
 c.save()
 print(pdf_file)
