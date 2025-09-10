@@ -19,7 +19,6 @@ def frequency_to_note(frequency):
 # --- SCRIPT PRINCIPAL ---
 
 filename = sys.argv[1]
-# O segundo argumento é o tipo de exercício, vindo do formulário
 exercise_type = sys.argv[2] if len(sys.argv) > 2 else "sustentacao_vogal"
 
 results = {
@@ -33,11 +32,13 @@ try:
     # --- LÓGICA CONDICIONAL BASEADA NO EXERCÍCIO ---
 
     if exercise_type == "teste_vogais":
-        # Lógica de análise para o teste A-E-I-O-U
-        # Encontra os segmentos de som e silêncio
-        silences = call(sound, "To TextGrid (silences)", 100, -25, 0.1, 0.1, "silent", "sounding")
-        num_intervals = call(silences, "Get number of intervals", 2)
+        # --- INÍCIO DA CORREÇÃO ---
+        # Simplificamos a chamada, removendo os argumentos de texto que estavam causando a confusão.
+        # O Praat usará os valores padrão "silent" e "sounding".
+        silences = call(sound, "To TextGrid (silences)", 100, -25, 0.1, 0.1)
+        # --- FIM DA CORREÇÃO ---
         
+        num_intervals = call(silences, "Get number of intervals", 2)
         vowel_formants = {}
         vogais = ['a', 'e', 'i', 'o', 'u']
         sound_intervals_count = 0
@@ -48,7 +49,6 @@ try:
                 end_time = call(silences, "Get end point", 2, i)
                 mid_time = start_time + (end_time - start_time) / 2
                 
-                # Extrai os formantes no meio de cada segmento de som
                 formant = sound.to_formant_burg(time_step=mid_time)
                 f1 = call(formant, "Get value at time", 1, mid_time, "Hertz", "Linear")
                 f2 = call(formant, "Get value at time", 2, mid_time, "Hertz", "Linear")
@@ -59,13 +59,12 @@ try:
                 sound_intervals_count += 1
         
         results["vowel_space_data"] = vowel_formants
-        results["summary"] = { "duration_seconds": sound.get_total_duration() } # Adiciona a duração total como referência
+        results["summary"] = { "duration_seconds": sound.get_total_duration() }
         results["status"] = "Análise de vogais completa."
-
-    else: # Lógica para "sustentacao_vogal" e "resistencia_tmf" (a análise é a mesma)
+        
+    else: # Lógica para "sustentacao_vogal" e "resistencia_tmf"
         pitch = sound.to_pitch()
         
-        # Dados de Resumo
         mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
         stdev_pitch_hz = call(pitch, "Get standard deviation", 0, 0, "Hertz")
         pitch_note = frequency_to_note(mean_pitch_hz)
@@ -83,7 +82,6 @@ try:
             "formant1_hz": f1_hz, "formant2_hz": f2_hz
         }
         
-        # Dados de Time Series (Contorno)
         pitch_values = pitch.selected_array['frequency']
         pitch_values[pitch_values==0] = np.nan
         times = pitch.xs()
@@ -92,7 +90,6 @@ try:
         pitch_contour_clean = [[time, (None if np.isnan(freq) else freq)] for time, freq in pitch_contour_raw]
         results["time_series"] = {"pitch_contour": pitch_contour_clean}
         
-        # Análise de Vibrato
         try:
             point_process = call(pitch, "To PointProcess (periodic, cc)")
             avg_period, freq_excursion, _, _, _, _, _, _ = call(
