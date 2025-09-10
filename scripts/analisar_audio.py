@@ -29,25 +29,24 @@ results = {
 try:
     sound = parselmouth.Sound(filename)
     
-    # --- LÓGICA CONDICIONAL BASEADA NO EXERCÍCIO ---
-
     if exercise_type == "teste_vogais":
-        # --- INÍCIO DA CORREÇÃO ---
-        # Criamos um objeto de Intensidade primeiro, que é o método mais robusto
         intensity = sound.to_intensity()
-        # Em seguida, criamos o TextGrid a partir da intensidade para detectar os silêncios
         silences = call(intensity, "To TextGrid (silences)", -25, 0.1, 0.1, "silent", "sounding")
+        
+        # --- INÍCIO DA CORREÇÃO ---
+        # Trocamos o número da camada (tier) de 2 para 1 em todas as chamadas abaixo.
+        num_intervals = call(silences, "Get number of intervals", 1)
         # --- FIM DA CORREÇÃO ---
         
-        num_intervals = call(silences, "Get number of intervals", 2)
         vowel_formants = {}
         vogais = ['a', 'e', 'i', 'o', 'u']
         sound_intervals_count = 0
         
         for i in range(1, num_intervals + 1):
-            if call(silences, "Get label of interval", 2, i) == "sounding":
-                start_time = call(silences, "Get starting point", 2, i)
-                end_time = call(silences, "Get end point", 2, i)
+            # --- CORREÇÃO APLICADA AQUI TAMBÉM ---
+            if call(silences, "Get label of interval", 1, i) == "sounding":
+                start_time = call(silences, "Get starting point", 1, i)
+                end_time = call(silences, "Get end point", 1, i)
                 mid_time = start_time + (end_time - start_time) / 2
                 
                 formant = sound.to_formant_burg(time_step=mid_time)
