@@ -49,9 +49,9 @@ try:
 
     # --- ADIÇÃO DE JITTER, SHIMMER E VIBRATO PARA ANÁLISE DETALHADA ---
     try:
-        # AJUSTE AQUI: Tenta obter o point_process com mais tolerância
-        # Os parâmetros 3 e 4 (pitch_floor, pitch_ceiling) são ajustados
-        point_process = call(pitch, "To PointProcess (periodic, cc)", 75, 500)
+        # AJUSTE CRUCIAL AQUI: Mudamos de (periodic, cc) para (periodic, ac)
+        # O método "ac" (autocorrelação) é mais robusto para vozes com vibrato ou soprosidade.
+        point_process = call(pitch, "To PointProcess (periodic, ac)")
         
         # Ajustamos os parâmetros de jitter e shimmer para serem mais tolerantes
         jitter_local = call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.05, 1.1) * 100
