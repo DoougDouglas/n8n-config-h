@@ -41,12 +41,14 @@ def generate_recommendations(data):
         # Recomendações de Estabilidade (Jitter/Shimmer)
         if isinstance(jitter, (int, float)) and jitter > 1.5:
             recomendacoes.append("• <b>Estabilidade (Jitter):</b> Sua afinação apresentou instabilidade. Pratique notas longas e estáveis para um maior controle vocal. Uma voz saudável costuma ter um Jitter < 1%.")
-        elif jitter == "N/A":
-            recomendacoes.append("• <b>Estabilidade (Jitter e Shimmer):</b> As análises de Jitter e Shimmer não puderam ser calculadas. Para um resultado completo, grave novamente em um ambiente silencioso, com a voz mais "limpa" possível (sem sopro) e segure a nota de forma reta, sem vibrato.")
-
+        
         if isinstance(shimmer, (int, float)) and shimmer > 3.5:
             recomendacoes.append("• <b>Estabilidade (Shimmer):</b> Sua voz variou bastante em volume. Exercícios de controle de intensidade e apoio respiratório podem ajudar a suavizar essa variação. Uma voz saudável costuma ter um Shimmer < 3%.")
             
+        # AQUI FOI FEITO O AJUSTE PARA O CASO DE JITTER/SHIMMER FALHAREM
+        if jitter == "N/A" and shimmer == "N/A":
+             recomendacoes.append("• <b>Estabilidade (Jitter e Shimmer):</b> As análises de Jitter e Shimmer não puderam ser calculadas. Para um resultado completo, grave novamente em um ambiente silencioso, com a voz mais 'limpa' possível (sem sopro) e segure a nota de forma reta, sem vibrato.")
+
         vibrato_data = summary.get("vibrato", {})
         if vibrato_data.get("is_present") and vibrato_data.get("extent_semitones", 0) > 0.3:
             recomendacoes.append("• <b>Vibrato:</b> Sua voz apresentou um vibrato natural. Isso demonstra flexibilidade e relaxamento. Continue praticando para refinar essa oscilação.")
@@ -306,8 +308,8 @@ else: # PADRÃO: SUSTENTAÇÃO DE VOGAL
     
     # Se Jitter ou Shimmer não forem calculados, instrui o usuário.
     if jitter_val == "N/A" or shimmer_val == "N/A":
-        jitter_text = "N/A (Tente novamente com voz mais limpa e reta)"
-        shimmer_text = "N/A (Tente novamente com voz mais limpa e reta)"
+        jitter_text = "Não pôde ser calculado (consulte as dicas abaixo)"
+        shimmer_text = "Não pôde ser calculado (consulte as dicas abaixo)"
     else:
         jitter_text = f"{jitter_val}%"
         shimmer_text = f"{shimmer_val}%"
