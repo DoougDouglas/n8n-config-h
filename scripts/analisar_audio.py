@@ -26,7 +26,8 @@ results = {
 
 try:
     sound = parselmouth.Sound(filename)
-    pitch = sound.to_pitch()
+    # AJUSTE AQUI: Cria o objeto pitch com uma faixa de frequência vocal mais ampla
+    pitch = sound.to_pitch(pitch_floor=75.0, pitch_ceiling=500.0)
     
     # --- DADOS DE RESUMO (AGORA CALCULADOS PARA TODOS OS EXERCÍCIOS) ---
     mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
@@ -48,12 +49,11 @@ try:
 
     # --- ADIÇÃO DE JITTER, SHIMMER E VIBRATO PARA ANÁLISE DETALHADA ---
     try:
-        # Aumentamos a faixa de pitch para detecção do ponto de processo
+        # AJUSTE AQUI: Tenta obter o point_process com mais tolerância
+        # Os parâmetros 3 e 4 (pitch_floor, pitch_ceiling) são ajustados
         point_process = call(pitch, "To PointProcess (periodic, cc)", 75, 500)
         
         # Ajustamos os parâmetros de jitter e shimmer para serem mais tolerantes
-        # O 4º parâmetro (teto de variação de frequência) foi ajustado de 0.02 para 0.05
-        # O 5º parâmetro (fator do período máximo) foi ajustado de 1.3 para 1.1
         jitter_local = call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.05, 1.1) * 100
         shimmer_local = call(point_process, "Get shimmer (local)", 0, 0, 0.0001, 0.05, 1.1) * 100
         
@@ -132,8 +132,6 @@ try:
         pitch_contour_clean = [[time, (None if np.isnan(freq) else freq)] for time, freq in pitch_contour_raw]
         results["time_series"] = {"pitch_contour": pitch_contour_clean}
         
-        # O vibrato já foi movido para o bloco de resumo, então não precisa ser recalculado aqui.
-    
     if "status" not in results or results["status"].startswith("Análise iniciada"):
         results["status"] = "Análise completa."
 
