@@ -48,11 +48,14 @@ try:
 
     # --- ADIÇÃO DE JITTER, SHIMMER E VIBRATO PARA ANÁLISE DETALHADA ---
     try:
-        point_process = call(pitch, "To PointProcess (periodic, cc)")
+        # Aumentamos a faixa de pitch para detecção do ponto de processo
+        point_process = call(pitch, "To PointProcess (periodic, cc)", 75, 500)
         
-        # Jitter (local) e Shimmer (local) em percentual
-        jitter_local = call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
-        shimmer_local = call(point_process, "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
+        # Ajustamos os parâmetros de jitter e shimmer para serem mais tolerantes
+        # O 4º parâmetro (teto de variação de frequência) foi ajustado de 0.02 para 0.05
+        # O 5º parâmetro (fator do período máximo) foi ajustado de 1.3 para 1.1
+        jitter_local = call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.05, 1.1) * 100
+        shimmer_local = call(point_process, "Get shimmer (local)", 0, 0, 0.0001, 0.05, 1.1) * 100
         
         # Vibrato
         avg_period, freq_excursion, _, _, _, _, _, _ = call(
