@@ -147,7 +147,7 @@ def draw_vowel_space_chart(vowel_data):
     buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close(fig)
     return buf
 
-# --- NOVA FUNÇÃO DE GRÁFICO ---
+# --- NOVA FUNÇÃO DE GRÁFICO (CORRIGIDA) ---
 def draw_vocal_range_chart(range_data):
     """Cria um gráfico de barra horizontal para a extensão vocal."""
     min_note = range_data.get("min_pitch_note", "N/A")
@@ -160,8 +160,12 @@ def draw_vocal_range_chart(range_data):
     notes = ["G2", "A2", "B2", "C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4"]
     # Aqui, você pode mapear suas notas para um índice ou um valor numérico para o gráfico
     # Exemplo simples: 1 para G2, 2 para A2, etc.
-    y_min = notes.index(min_note) if min_note in notes else 0
-    y_max = notes.index(max_note) if max_note in notes else len(notes) - 1
+    try:
+        y_min = notes.index(min_note)
+        y_max = notes.index(max_note)
+    except ValueError:
+        # Lida com casos onde a nota não está na lista predefinida
+        return None
 
     fig, ax = plt.subplots(figsize=(8, 3))
     
@@ -175,8 +179,8 @@ def draw_vocal_range_chart(range_data):
     ax.set_xlim(-0.5, len(notes) - 0.5)
     
     # Adiciona rótulos para as notas mínima e máxima
-    ax.text(y_min, "Sua Extensão", min_note, ha='right', va='center', color='white', fontweight='bold', fontsize=12, transform=ax.transData, x=y_min-0.2)
-    ax.text(y_max, "Sua Extensão", max_note, ha='left', va='center', color='white', fontweight='bold', fontsize=12, transform=ax.transData, x=y_max+0.2)
+    ax.text(y_min - 0.2, "Sua Extensão", min_note, ha='right', va='center', color='white', fontweight='bold', fontsize=12, transform=ax.transData)
+    ax.text(y_max + 0.2, "Sua Extensão", max_note, ha='left', va='center', color='white', fontweight='bold', fontsize=12, transform=ax.transData)
     
     plt.tight_layout(pad=1.0)
     buf = io.BytesIO()
