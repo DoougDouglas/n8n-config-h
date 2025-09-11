@@ -49,9 +49,8 @@ try:
 
     # --- ADIÇÃO DE JITTER, SHIMMER E VIBRATO PARA ANÁLISE DETALHADA ---
     try:
-        # AJUSTE CRUCIAL AQUI: Mudamos de (periodic, cc) para (periodic, ac)
-        # O método "ac" (autocorrelação) é mais robusto para vozes com vibrato ou soprosidade.
-        point_process = call(pitch, "To PointProcess (periodic, ac)")
+        # AJUSTE FINAL: Tenta criar o point_process de forma mais tolerante
+        point_process = call(pitch, "To PointProcess (periodic, ac)", 75, 500)
         
         # Ajustamos os parâmetros de jitter e shimmer para serem mais tolerantes
         jitter_local = call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.05, 1.1) * 100
@@ -70,11 +69,24 @@ try:
         }
 
     except Exception as e:
-        # Define valores "N/A" se a análise detalhada falhar
-        results["summary"]["jitter_percent"] = "N/A"
-        results["summary"]["shimmer_percent"] = "N/A"
-        results["summary"]["vibrato"] = {"is_present": False}
-        print(f"Aviso: Falha ao calcular métricas detalhadas (Jitter, Shimmer, Vibrato). {e}", file=sys.stderr)
+        # Se a primeira tentativa falhar, tentamos uma abordagem mais simples e tolerante
+        try:
+            point_process = call(pitch, "To PointProcess (periodic, ac)")
+            jitter_local = call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.05, 1.1) * 100
+            shimmer_local = call(point_process, "Get shimmer (local)", 0, 0, 0.0001, 0.05, 1.1) * 100
+            
+            results["summary"]["jitter_percent"] = jitter_local
+            results["summary"]["shimmer_percent"] = shimmer_local
+            results["summary"]["vibrato"] = {"is_present": False}
+            
+            print("Aviso: Falha na primeira tentativa, mas o cálculo foi feito com uma abordagem mais simples.", file=sys.stderr)
+            
+        except Exception:
+            # Se todas as tentativas falharem, retornamos "N/A"
+            results["summary"]["jitter_percent"] = "N/A"
+            results["summary"]["shimmer_percent"] = "N/A"
+            results["summary"]["vibrato"] = {"is_present": False}
+            print(f"Aviso: Falha ao calcular métricas detalhadas (Jitter, Shimmer, Vibrato). {e}", file=sys.stderr)
 
     # --- DADOS ESPECÍFICOS DE CADA EXERCÍCIO ---
     
