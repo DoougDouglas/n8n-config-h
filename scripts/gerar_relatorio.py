@@ -147,6 +147,44 @@ def draw_vowel_space_chart(vowel_data):
     buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close(fig)
     return buf
 
+# --- NOVA FUNÇÃO DE GRÁFICO ---
+def draw_vocal_range_chart(range_data):
+    """Cria um gráfico de barra horizontal para a extensão vocal."""
+    min_note = range_data.get("min_pitch_note", "N/A")
+    max_note = range_data.get("max_pitch_note", "N/A")
+    
+    if min_note == "N/A" or max_note == "N/A":
+        return None
+    
+    # O gráfico precisa de valores numéricos para as notas, não strings
+    notes = ["G2", "A2", "B2", "C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4"]
+    # Aqui, você pode mapear suas notas para um índice ou um valor numérico para o gráfico
+    # Exemplo simples: 1 para G2, 2 para A2, etc.
+    y_min = notes.index(min_note) if min_note in notes else 0
+    y_max = notes.index(max_note) if max_note in notes else len(notes) - 1
+
+    fig, ax = plt.subplots(figsize=(8, 3))
+    
+    ax.barh("Sua Extensão", width=y_max - y_min, left=y_min, color='#2E86C1')
+    
+    ax.set_title("Sua Extensão Vocal", fontsize=14)
+    ax.set_xlabel("Notas Musicais", fontsize=10)
+    ax.set_yticks([]) # Remove o eixo Y, pois o título da barra já é o suficiente
+    ax.set_xticks(range(len(notes)))
+    ax.set_xticklabels(notes, rotation=45, ha='right', fontsize=9)
+    ax.set_xlim(-0.5, len(notes) - 0.5)
+    
+    # Adiciona rótulos para as notas mínima e máxima
+    ax.text(y_min, "Sua Extensão", min_note, ha='right', va='center', color='white', fontweight='bold', fontsize=12, transform=ax.transData, x=y_min-0.2)
+    ax.text(y_max, "Sua Extensão", max_note, ha='left', va='center', color='white', fontweight='bold', fontsize=12, transform=ax.transData, x=y_max+0.2)
+    
+    plt.tight_layout(pad=1.0)
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=200)
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
 def draw_paragraph(c, y_start, text_list, style, available_width):
     """Desenha uma lista de parágrafos e retorna a nova posição Y."""
     y_line = y_start
@@ -241,15 +279,15 @@ elif exercise_type == "analise_extensao":
 
     y = check_page_break(y, 170)
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#117A65"))
-    c.drawString(margin, y, "Variação de Afinação Durante o Exercício"); y -= 15
-    pitch_contour_data = data.get("time_series", {}).get("pitch_contour", [])
-    if pitch_contour_data:
-        chart_buffer = draw_pitch_contour_chart(pitch_contour_data)
-        if chart_buffer:
-            img = ImageReader(chart_buffer); img_width, img_height = img.getSize(); aspect = img_height / float(img_width)
-            img_h = available_width * aspect
-            y = check_page_break(y, img_h); c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
-            y -= (img_h + 30)
+    c.drawString(margin, y, "Seu Mapa de Extensão Vocal"); y -= 15
+    
+    # NOVO GRÁFICO CHAMADO AQUI
+    vocal_range_chart_buffer = draw_vocal_range_chart(range_data)
+    if vocal_range_chart_buffer:
+        img = ImageReader(vocal_range_chart_buffer); img_width, img_height = img.getSize(); aspect = img_height / float(img_width)
+        img_h = available_width * aspect
+        y = check_page_break(y, img_h); c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
+        y -= (img_h + 30)
 else: # PADRÃO: SUSTENTAÇÃO DE VOGAL
     y = check_page_break(y, 150)
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
