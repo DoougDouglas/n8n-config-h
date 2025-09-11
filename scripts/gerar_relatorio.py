@@ -302,8 +302,8 @@ else: # PADRÃO: SUSTENTAÇÃO DE VOGAL
         f"<b>Afinação Média:</b> {round(summary.get('pitch_hz', 0), 2)} Hz (Nota: {summary.get('pitch_note', 'N/A')})",
         f"<b>Estabilidade (Desvio Padrão):</b> {round(summary.get('stdev_pitch_hz', 0), 2)} Hz",
         f"<b>Qualidade (HNR):</b> {round(summary.get('hnr_db', 0), 2)} dB",
-        f"<b>Jitter:</b> {round(summary.get('jitter_percent', 0), 2)}%",
-        f"<b>Shimmer:</b> {round(summary.get('shimmer_percent', 0), 2)}%",
+        f"<b>Jitter:</b> {round(summary.get('jitter_percent', 0), 2) if isinstance(summary.get('jitter_percent', 0), (int, float)) else summary.get('jitter_percent', 'N/A')}%",
+        f"<b>Shimmer:</b> {round(summary.get('shimmer_percent', 0), 2) if isinstance(summary.get('shimmer_percent', 0), (int, float)) else summary.get('shimmer_percent', 'N/A')}%",
         f"<b>Eficiência Respiratória (TMF):</b> {round(summary.get('duration_seconds', 0), 2)} segundos",
         f"<b>Intensidade Média:</b> {round(summary.get('intensity_db', 0), 2)} dB",
         f"<b>Classificação Sugerida:</b> {classificacao}"
