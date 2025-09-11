@@ -54,22 +54,43 @@ def draw_pitch_contour_chart(pitch_data):
     times = [p[0] for p in pitch_data if p[1] is not None]
     frequencies = [p[1] for p in pitch_data if p[1] is not None]
     if not times or len(times) < 2: return None
-    plt.figure(figsize=(10, 3.5)); plt.plot(times, frequencies, color='#2E86C1', linewidth=2)
-    plt.title("Contorno da Afinação ao Longo do Tempo", fontsize=12); plt.xlabel("Tempo (segundos)", fontsize=10)
-    plt.ylabel("Frequência (Hz)", fontsize=10); plt.grid(True, linestyle='--', alpha=0.6)
-    plt.ylim(bottom=max(0, min(frequencies) - 20), top=max(frequencies) + 20); plt.tight_layout()
-    buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=200); buf.seek(0); plt.close()
+    
+    fig, ax = plt.subplots(figsize=(10, 3.5))
+    ax.plot(times, frequencies, color='#2E86C1', linewidth=2)
+    ax.set_title("Contorno da Afinação ao Longo do Tempo", fontsize=12)
+    ax.set_xlabel("Tempo (segundos)", fontsize=10)
+    ax.set_ylabel("Frequência (Hz)", fontsize=10)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.set_ylim(bottom=max(0, min(frequencies) - 20), top=max(frequencies) + 20)
+    
+    plt.tight_layout(pad=1.0) # Adiciona padding para não cortar os labels
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=200)
+    buf.seek(0)
+    plt.close(fig)
     return buf
 
 def draw_spectrogram(sound):
     """Cria um espectrograma do áudio."""
     try:
-        spectrogram = sound.to_spectrogram(); plt.figure(figsize=(10, 3.5))
+        spectrogram = sound.to_spectrogram()
+        fig, ax = plt.subplots(figsize=(10, 3.5))
+        
         sg_db = 10 * np.log10(spectrogram.values)
-        plt.imshow(sg_db, cmap='viridis', aspect='auto', origin='lower', extent=[spectrogram.xmin, spectrogram.xmax, spectrogram.ymin, spectrogram.ymax])
-        plt.title("Espectrograma (Impressão Digital da Voz)", fontsize=12); plt.xlabel("Tempo (segundos)", fontsize=10)
-        plt.ylabel("Frequência (Hz)", fontsize=10); plt.ylim(top=4000)
-        buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=200); buf.seek(0); plt.close()
+        
+        im = ax.imshow(sg_db, cmap='viridis', aspect='auto', origin='lower', 
+                       extent=[spectrogram.xmin, spectrogram.xmax, spectrogram.ymin, spectrogram.ymax])
+        
+        ax.set_title("Espectrograma (Impressão Digital da Voz)", fontsize=12)
+        ax.set_xlabel("Tempo (segundos)", fontsize=10)
+        ax.set_ylabel("Frequência (Hz)", fontsize=10)
+        ax.set_ylim(top=4000)
+        
+        plt.tight_layout(pad=1.0) # Adiciona padding para não cortar os labels
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=200)
+        buf.seek(0)
+        plt.close(fig)
         return buf
     except Exception: return None
 
@@ -84,19 +105,25 @@ def draw_vowel_space_chart(vowel_data):
     fig, ax = plt.subplots(figsize=(6, 6))
     
     ax.scatter(f2_vals, f1_vals, s=100, c='#2E86C1', zorder=10)
+    
+    # --- INÍCIO DA CORREÇÃO ---
+    # Ajusta a posição das letras para ficarem ao lado e acima das bolinhas
     for i, txt in enumerate(vogais):
-        ax.annotate(txt.upper(), (f2_vals[i] + 30, f1_vals[i] + 10), fontsize=12, fontweight='bold')
+        ax.annotate(txt.upper(), (f2_vals[i], f1_vals[i]), xytext=(5, 12), textcoords='offset points', fontsize=12, fontweight='bold')
+    # --- FIM DA CORREÇÃO ---
         
     if all(v is not None for v in [f1_vals[0], f1_vals[2], f1_vals[4], f2_vals[0], f2_vals[2], f2_vals[4]]):
         triangle_f2 = [f2_vals[0], f2_vals[2], f2_vals[4], f2_vals[0]]
         triangle_f1 = [f1_vals[0], f1_vals[2], f1_vals[4], f1_vals[0]]
         ax.plot(triangle_f2, triangle_f1, color='gray', linestyle='--', zorder=5, linewidth=2)
 
-    ax.set_xlabel("Formante 2 (F2) - Anterioridade da Língua →"); ax.set_ylabel("Formante 1 (F1) - Altura da Língua →")
-    ax.set_title("Mapa do Seu Espaço Vocálico", fontsize=14); ax.grid(True, linestyle='--', alpha=0.5)
+    ax.set_xlabel("Formante 2 (F2) - Anterioridade da Língua →")
+    ax.set_ylabel("Formante 1 (F1) - Altura da Língua →")
+    ax.set_title("Mapa do Seu Espaço Vocálico", fontsize=14)
+    ax.grid(True, linestyle='--', alpha=0.5)
     
     ax.invert_xaxis(); ax.invert_yaxis()
-    plt.tight_layout()
+    plt.tight_layout(pad=1.0)
     
     buf = io.BytesIO(); plt.savefig(buf, format='png', dpi=150); buf.seek(0); plt.close(fig)
     return buf
