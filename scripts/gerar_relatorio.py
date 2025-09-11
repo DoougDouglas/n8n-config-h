@@ -156,10 +156,9 @@ def draw_vocal_range_chart(range_data):
     if min_note == "N/A" or max_note == "N/A":
         return None
     
-    # O gráfico precisa de valores numéricos para as notas, não strings
-    notes = ["G2", "A2", "B2", "C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4"]
-    # Aqui, você pode mapear suas notas para um índice ou um valor numérico para o gráfico
-    # Exemplo simples: 1 para G2, 2 para A2, etc.
+    # A lista de notas foi expandida para incluir os sustenidos
+    notes = ["G2", "G#2", "A2", "A#2", "B2", "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3", "G3", "G#3", "A3", "A#3", "B3", "C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4"]
+    
     try:
         y_min = notes.index(min_note)
         y_max = notes.index(max_note)
@@ -188,6 +187,7 @@ def draw_vocal_range_chart(range_data):
     buf.seek(0)
     plt.close(fig)
     return buf
+
 
 def draw_paragraph(c, y_start, text_list, style, available_width):
     """Desenha uma lista de parágrafos e retorna a nova posição Y."""
@@ -285,7 +285,6 @@ elif exercise_type == "analise_extensao":
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#117A65"))
     c.drawString(margin, y, "Seu Mapa de Extensão Vocal"); y -= 15
     
-    # NOVO GRÁFICO CHAMADO AQUI
     vocal_range_chart_buffer = draw_vocal_range_chart(range_data)
     if vocal_range_chart_buffer:
         img = ImageReader(vocal_range_chart_buffer); img_width, img_height = img.getSize(); aspect = img_height / float(img_width)
