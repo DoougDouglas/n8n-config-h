@@ -46,6 +46,33 @@ try:
         "formant1_hz": f1_hz, "formant2_hz": f2_hz
     }
 
+    # --- ADIÇÃO DE JITTER, SHIMMER E VIBRATO PARA ANÁLISE DETALHADA ---
+    try:
+        point_process = call(pitch, "To PointProcess (periodic, cc)")
+        
+        # Jitter (local) e Shimmer (local) em percentual
+        jitter_local = call(point_process, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
+        shimmer_local = call(point_process, "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
+        
+        # Vibrato
+        avg_period, freq_excursion, _, _, _, _, _, _ = call(
+            (sound, point_process, pitch), "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100)
+            
+        results["summary"]["jitter_percent"] = jitter_local
+        results["summary"]["shimmer_percent"] = shimmer_local
+        results["summary"]["vibrato"] = {
+            "is_present": True,
+            "rate_hz": 1 / avg_period if avg_period > 0 else 0,
+            "extent_semitones": freq_excursion
+        }
+
+    except Exception as e:
+        # Define valores "N/A" se a análise detalhada falhar
+        results["summary"]["jitter_percent"] = "N/A"
+        results["summary"]["shimmer_percent"] = "N/A"
+        results["summary"]["vibrato"] = {"is_present": False}
+        print(f"Aviso: Falha ao calcular métricas detalhadas (Jitter, Shimmer, Vibrato). {e}", file=sys.stderr)
+
     # --- DADOS ESPECÍFICOS DE CADA EXERCÍCIO ---
     
     if exercise_type == "teste_vogais":
@@ -72,9 +99,28 @@ try:
         
         results["vowel_space_data"] = vowel_formants
         results["status"] = "Análise de vogais completa."
-    
-    # Time Series e Vibrato são relevantes para sustentação e resistência
-    if exercise_type in ["sustentacao_vogal", "resistencia_tmf"]:
+
+    # Seção para o novo teste de extensão vocal
+    elif exercise_type == "analise_extensao":
+        pitch_values = pitch.selected_array['frequency']
+        valid_pitches = pitch_values[pitch_values > 0]
+        
+        if len(valid_pitches) > 0:
+            min_pitch_hz = np.min(valid_pitches)
+            max_pitch_hz = np.max(valid_pitches)
+            
+            results["range_data"] = {
+                "min_pitch_hz": min_pitch_hz,
+                "max_pitch_hz": max_pitch_hz,
+                "min_pitch_note": frequency_to_note(min_pitch_hz),
+                "max_pitch_note": frequency_to_note(max_pitch_hz)
+            }
+            results["status"] = "Análise de extensão vocal completa."
+        else:
+            results["status"] = "Não foi possível detectar notas para análise de extensão."
+
+    # Time Series é relevante para sustentação e resistência
+    elif exercise_type in ["sustentacao_vogal", "resistencia_tmf"]:
         pitch_values = pitch.selected_array['frequency']
         pitch_values[pitch_values==0] = np.nan
         times = pitch.xs()
@@ -83,13 +129,7 @@ try:
         pitch_contour_clean = [[time, (None if np.isnan(freq) else freq)] for time, freq in pitch_contour_raw]
         results["time_series"] = {"pitch_contour": pitch_contour_clean}
         
-        try:
-            point_process = call(pitch, "To PointProcess (periodic, cc)")
-            avg_period, freq_excursion, _, _, _, _, _, _ = call(
-                (sound, point_process, pitch), "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100)
-            results["vibrato"] = {"is_present": True, "rate_hz": 1 / avg_period if avg_period > 0 else 0, "extent_semitones": freq_excursion}
-        except Exception:
-            results["vibrato"] = {"is_present": False}
+        # O vibrato já foi movido para o bloco de resumo, então não precisa ser recalculado aqui.
     
     if "status" not in results or results["status"].startswith("Análise iniciada"):
         results["status"] = "Análise completa."
