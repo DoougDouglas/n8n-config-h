@@ -27,12 +27,27 @@ def generate_recommendations(data):
     
     if exercise_type == "sustentacao_vogal":
         hnr = summary.get("hnr_db", 0)
+        jitter = summary.get("jitter_percent", None)
+        shimmer = summary.get("shimmer_percent", None)
+        
+        # Recomendações de Qualidade Vocal (HNR)
         if hnr < 18:
             recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado indica uma voz com bastante soprosidade (ar na voz). Para um som mais 'limpo', foque em exercícios de apoio respiratório e fechamento suave das cordas vocais.")
         elif hnr < 22:
             recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado é bom, mas pode ser melhorado. Para aumentar a clareza e ressonância da sua voz, continue praticando um fluxo de ar constante e bem apoiado em suas notas.")
         else:
             recomendacoes.append("• <b>Qualidade Vocal (HNR):</b> Seu resultado está excelente, indicando uma voz clara, 'limpa' e com ótimo apoio. Continue assim!")
+            
+        # Recomendações de Estabilidade (Jitter/Shimmer)
+        if isinstance(jitter, (int, float)) and jitter > 1.5:
+            recomendacoes.append("• <b>Estabilidade (Jitter):</b> Sua afinação apresentou instabilidade. Pratique notas longas e estáveis para um maior controle vocal. Uma voz saudável costuma ter um Jitter < 1%.")
+        if isinstance(shimmer, (int, float)) and shimmer > 3.5:
+            recomendacoes.append("• <b>Estabilidade (Shimmer):</b> Sua voz variou bastante em volume. Exercícios de controle de intensidade e apoio respiratório podem ajudar a suavizar essa variação. Uma voz saudável costuma ter um Shimmer < 3%.")
+            
+        vibrato_data = summary.get("vibrato", {})
+        if vibrato_data.get("is_present") and vibrato_data.get("extent_semitones", 0) > 0.3:
+            recomendacoes.append("• <b>Vibrato:</b> Sua voz apresentou um vibrato natural. Isso demonstra flexibilidade e relaxamento. Continue praticando para refinar essa oscilação.")
+
 
     if exercise_type == "resistencia_tmf":
         tmf = summary.get("duration_seconds", 0)
@@ -43,6 +58,12 @@ def generate_recommendations(data):
 
     if exercise_type == "teste_vogais":
         recomendacoes.append("• <b>Clareza da Dicção:</b> Observe no gráfico se suas vogais estão bem definidas e separadas. Quanto maior a área do triângulo entre 'A', 'I' e 'U', mais clara e distinta é a sua articulação.")
+        
+    if exercise_type == "analise_extensao":
+        range_data = data.get("range_data", {})
+        min_note = range_data.get("min_pitch_note", "N/A")
+        max_note = range_data.get("max_pitch_note", "N/A")
+        recomendacoes.append(f"• <b>Extensão Vocal (Range):</b> Sua voz se estendeu da nota {min_note} até a {max_note}. Para expandir seu alcance, pratique exercícios de aquecimento e escalas em sua região de transição (passaggio).")
 
     if not recomendacoes:
         recomendacoes.append("• Análise concluída com sucesso. Continue praticando para acompanhar sua evolução!")
@@ -106,12 +127,10 @@ def draw_vowel_space_chart(vowel_data):
     
     ax.scatter(f2_vals, f1_vals, s=100, c='#2E86C1', zorder=10)
     
-    # --- INÍCIO DA CORREÇÃO ---
     # Ajusta a posição das letras para ficarem ao lado e acima das bolinhas
     for i, txt in enumerate(vogais):
         ax.annotate(txt.upper(), (f2_vals[i], f1_vals[i]), xytext=(5, 12), textcoords='offset points', fontsize=12, fontweight='bold')
-    # --- FIM DA CORREÇÃO ---
-        
+    
     if all(v is not None for v in [f1_vals[0], f1_vals[2], f1_vals[4], f2_vals[0], f2_vals[2], f2_vals[4]]):
         triangle_f2 = [f2_vals[0], f2_vals[2], f2_vals[4], f2_vals[0]]
         triangle_f1 = [f1_vals[0], f1_vals[2], f1_vals[4], f1_vals[0]]
@@ -182,7 +201,7 @@ if exercise_type == "teste_vogais":
         img_h = available_width * 0.95
         y = check_page_break(y, img_h); c.drawImage(ImageReader(vowel_chart_buffer), margin, y - img_h, width=available_width, height=img_h, preserveAspectRatio=True, anchor='n')
         y -= (img_h + 15)
-    
+        
 elif exercise_type == "resistencia_tmf":
     y = check_page_break(y, 100)
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
@@ -206,19 +225,54 @@ elif exercise_type == "resistencia_tmf":
             img_h = available_width * aspect
             y = check_page_break(y, img_h); c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
             y -= (img_h + 30)
+            
+elif exercise_type == "analise_extensao":
+    y = check_page_break(y, 100)
+    c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
+    c.drawString(margin, y, "Resumo da Análise de Extensão Vocal"); y -= 15
+    style = ParagraphStyle(name='Resumo', fontName='Helvetica', fontSize=12, leading=20)
+    range_data = data.get("range_data", {})
+    resumo_content = [
+        f"<b>Nota Mais Grave:</b> {range_data.get('min_pitch_note', 'N/A')} ({round(range_data.get('min_pitch_hz', 0), 2)} Hz)",
+        f"<b>Nota Mais Aguda:</b> {range_data.get('max_pitch_note', 'N/A')} ({round(range_data.get('max_pitch_hz', 0), 2)} Hz)"
+    ]
+    y = draw_paragraph(c, y, resumo_content, style, available_width)
+    y -= 30
+
+    y = check_page_break(y, 170)
+    c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#117A65"))
+    c.drawString(margin, y, "Variação de Afinação Durante o Exercício"); y -= 15
+    pitch_contour_data = data.get("time_series", {}).get("pitch_contour", [])
+    if pitch_contour_data:
+        chart_buffer = draw_pitch_contour_chart(pitch_contour_data)
+        if chart_buffer:
+            img = ImageReader(chart_buffer); img_width, img_height = img.getSize(); aspect = img_height / float(img_width)
+            img_h = available_width * aspect
+            y = check_page_break(y, img_h); c.drawImage(img, margin, y - img_h, width=available_width, height=img_h)
+            y -= (img_h + 30)
 else: # PADRÃO: SUSTENTAÇÃO DE VOGAL
     y = check_page_break(y, 150)
     c.setFont("Helvetica-Bold", 14); c.setFillColor(colors.HexColor("#1F618D"))
     c.drawString(margin, y, "Resumo da Análise"); y -= 15
     style = ParagraphStyle(name='Resumo', fontName='Helvetica', fontSize=11, leading=18)
+    
+    # Adiciona as novas métricas ao resumo
     resumo_content = [
         f"<b>Afinação Média:</b> {round(summary.get('pitch_hz', 0), 2)} Hz (Nota: {summary.get('pitch_note', 'N/A')})",
         f"<b>Estabilidade (Desvio Padrão):</b> {round(summary.get('stdev_pitch_hz', 0), 2)} Hz",
-        f"<b>Intensidade Média:</b> {round(summary.get('intensity_db', 0), 2)} dB",
         f"<b>Qualidade (HNR):</b> {round(summary.get('hnr_db', 0), 2)} dB",
+        f"<b>Jitter:</b> {round(summary.get('jitter_percent', 0), 2)}%",
+        f"<b>Shimmer:</b> {round(summary.get('shimmer_percent', 0), 2)}%",
         f"<b>Eficiência Respiratória (TMF):</b> {round(summary.get('duration_seconds', 0), 2)} segundos",
+        f"<b>Intensidade Média:</b> {round(summary.get('intensity_db', 0), 2)} dB",
         f"<b>Classificação Sugerida:</b> {classificacao}"
     ]
+    # Se vibrato for relevante, adiciona ao resumo
+    if summary.get("vibrato", {}).get("is_present"):
+        vibrato_rate = round(summary["vibrato"]["rate_hz"], 2)
+        vibrato_extent = round(summary["vibrato"]["extent_semitones"], 2)
+        resumo_content.append(f"<b>Vibrato:</b> Presente (Taxa: {vibrato_rate} Hz, Extensão: {vibrato_extent} ST)")
+    
     y = draw_paragraph(c, y, resumo_content, style, available_width)
     y -= 20
     
