@@ -41,6 +41,9 @@ def generate_recommendations(data):
         # Recomendações de Estabilidade (Jitter/Shimmer)
         if isinstance(jitter, (int, float)) and jitter > 1.5:
             recomendacoes.append("• <b>Estabilidade (Jitter):</b> Sua afinação apresentou instabilidade. Pratique notas longas e estáveis para um maior controle vocal. Uma voz saudável costuma ter um Jitter < 1%.")
+        elif jitter == "N/A":
+            recomendacoes.append("• <b>Estabilidade (Jitter e Shimmer):</b> As análises de Jitter e Shimmer não puderam ser calculadas. Para um resultado completo, grave novamente em um ambiente silencioso, com a voz mais "limpa" possível (sem sopro) e segure a nota de forma reta, sem vibrato.")
+
         if isinstance(shimmer, (int, float)) and shimmer > 3.5:
             recomendacoes.append("• <b>Estabilidade (Shimmer):</b> Sua voz variou bastante em volume. Exercícios de controle de intensidade e apoio respiratório podem ajudar a suavizar essa variação. Uma voz saudável costuma ter um Shimmer < 3%.")
             
@@ -298,12 +301,23 @@ else: # PADRÃO: SUSTENTAÇÃO DE VOGAL
     style = ParagraphStyle(name='Resumo', fontName='Helvetica', fontSize=11, leading=18)
     
     # Adiciona as novas métricas ao resumo
+    jitter_val = round(summary.get('jitter_percent', 0), 2) if isinstance(summary.get('jitter_percent', 0), (int, float)) else summary.get('jitter_percent', 'N/A')
+    shimmer_val = round(summary.get('shimmer_percent', 0), 2) if isinstance(summary.get('shimmer_percent', 0), (int, float)) else summary.get('shimmer_percent', 'N/A')
+    
+    # Se Jitter ou Shimmer não forem calculados, instrui o usuário.
+    if jitter_val == "N/A" or shimmer_val == "N/A":
+        jitter_text = "N/A (Tente novamente com voz mais limpa e reta)"
+        shimmer_text = "N/A (Tente novamente com voz mais limpa e reta)"
+    else:
+        jitter_text = f"{jitter_val}%"
+        shimmer_text = f"{shimmer_val}%"
+    
     resumo_content = [
         f"<b>Afinação Média:</b> {round(summary.get('pitch_hz', 0), 2)} Hz (Nota: {summary.get('pitch_note', 'N/A')})",
         f"<b>Estabilidade (Desvio Padrão):</b> {round(summary.get('stdev_pitch_hz', 0), 2)} Hz",
         f"<b>Qualidade (HNR):</b> {round(summary.get('hnr_db', 0), 2)} dB",
-        f"<b>Jitter:</b> {round(summary.get('jitter_percent', 0), 2) if isinstance(summary.get('jitter_percent', 0), (int, float)) else summary.get('jitter_percent', 'N/A')}%",
-        f"<b>Shimmer:</b> {round(summary.get('shimmer_percent', 0), 2) if isinstance(summary.get('shimmer_percent', 0), (int, float)) else summary.get('shimmer_percent', 'N/A')}%",
+        f"<b>Jitter:</b> {jitter_text}",
+        f"<b>Shimmer:</b> {shimmer_text}",
         f"<b>Eficiência Respiratória (TMF):</b> {round(summary.get('duration_seconds', 0), 2)} segundos",
         f"<b>Intensidade Média:</b> {round(summary.get('intensity_db', 0), 2)} dB",
         f"<b>Classificação Sugerida:</b> {classificacao}"
