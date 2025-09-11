@@ -9,6 +9,7 @@ from reportlab.lib.enums import TA_LEFT
 import sys
 import json
 import io
+import os # Importar o módulo os para manipular caminhos de arquivo
 
 # Importa as bibliotecas de análise e gráficos
 import parselmouth
@@ -105,7 +106,7 @@ def draw_spectrogram(sound):
         sg_db = 10 * np.log10(spectrogram.values)
         
         im = ax.imshow(sg_db, cmap='viridis', aspect='auto', origin='lower', 
-                       extent=[spectrogram.xmin, spectrogram.xmax, spectrogram.ymin, spectrogram.ymax])
+                        extent=[spectrogram.xmin, spectrogram.xmax, spectrogram.ymin, spectrogram.ymax])
         
         ax.set_title("Espectrograma (Impressão Digital da Voz)", fontsize=12)
         ax.set_xlabel("Tempo (segundos)", fontsize=10)
@@ -206,15 +207,27 @@ def draw_paragraph(c, y_start, text_list, style, available_width):
     return y_line
 
 # --- SCRIPT PRINCIPAL DE GERAÇÃO DE PDF ---
-json_file_path = "/tmp/cursoTutoLMS/py/data_for_report.json"
-audio_file_path = "/tmp/cursoTutoLMS/py/audio-aluno.wav" 
+
+# MODIFICAÇÃO AQUI: Ler o nome da pasta do cliente (email) como argumento
+if len(sys.argv) < 2:
+    print("Uso: python seu_script.py <nome_da_pasta_do_cliente_email>", file=sys.stderr)
+    sys.exit(1)
+
+client_folder_name = sys.argv[1] # Pega o primeiro argumento (email)
+
+# Constrói os caminhos completos usando o nome da pasta do cliente
+base_dir = os.path.join("/tmp/cursoTutoLMS/py", client_folder_name)
+json_file_path = os.path.join(base_dir, "data_for_report.json")
+audio_file_path = os.path.join(base_dir, "audio-aluno.wav")
+pdf_file = os.path.join(base_dir, "relatorio_vocal.pdf")
+
+
 try:
     with open(json_file_path, 'r', encoding='utf-8') as f: data = json.load(f)
     sound = parselmouth.Sound(audio_file_path)
 except Exception as e:
     print(f"Erro ao ler os arquivos: {e}", file=sys.stderr); sys.exit(1)
 
-pdf_file = "/tmp/cursoTutoLMS/py/relatorio_vocal.pdf"
 c = canvas.Canvas(pdf_file, pagesize=A4)
 width, height = A4; margin = 50; available_width = width - (2 * margin)
 
