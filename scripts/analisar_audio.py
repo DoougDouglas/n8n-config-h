@@ -28,7 +28,8 @@ results = {
 
 try:
     sound = parselmouth.Sound(filename)
-    pitch = sound.to_pitch(pitch_floor=75.0, pitch_ceiling=500.0)
+    # Use to_pitch_ac para uma detecção de pitch mais robusta
+    pitch = sound.to_pitch_ac(pitch_floor=75.0, pitch_ceiling=500.0)
 
     # --- DADOS DE RESUMO ---
     mean_pitch_hz = call(pitch, "Get mean", 0, 0, "Hertz")
@@ -148,7 +149,6 @@ try:
         results["status"] = "Análise completa."
 
 except Exception as e:
-    # Captura qualquer erro na análise principal e retorna um JSON com o erro
     results = {"status": "Falha na análise.", "error": str(e), "exercise_type": exercise_type}
 
 print(json.dumps(results))
