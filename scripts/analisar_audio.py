@@ -53,54 +53,40 @@ try:
     }
 
     # --- JITTER, SHIMMER, VIBRATO ---
-    try:
-        # Cria o PointProcess usando sound + pitch (mais confiável)
-        point_process = call([sound, pitch], "To PointProcess (cc)")
+try:
+    # Cria o PointProcess a partir de Sound e Pitch
+    point_process = call([sound, pitch], "To PointProcess (cc)")
 
-        jitter_local = call(
-            point_process, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3
-        ) * 100
+    # Calcula jitter e shimmer passando sound e point_process juntos
+    jitter_local = call(
+        [sound, point_process], "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3
+    ) * 100
 
-        shimmer_local = call(
-            [sound, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3
-        ) * 100
+    shimmer_local = call(
+        [sound, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3
+    ) * 100
 
-        # Vibrato
-        avg_period, freq_excursion, _, _, _, _, _, _ = call(
-            (sound, point_process, pitch),
-            "Get vibrato",
-            0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
-        )
+    # Vibrato
+    avg_period, freq_excursion, _, _, _, _, _, _ = call(
+        [sound, point_process, pitch], # Passa os três objetos
+        "Get vibrato",
+        0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
+    )
 
-        results["summary"]["jitter_percent"] = jitter_local
-        results["summary"]["shimmer_percent"] = shimmer_local
-        results["summary"]["vibrato"] = {
-            "is_present": True,
-            "rate_hz": 1 / avg_period if avg_period > 0 else 0,
-            "extent_semitones": freq_excursion
-        }
+    results["summary"]["jitter_percent"] = jitter_local
+    results["summary"]["shimmer_percent"] = shimmer_local
+    results["summary"]["vibrato"] = {
+        "is_present": True,
+        "rate_hz": 1 / avg_period if avg_period > 0 else 0,
+        "extent_semitones": freq_excursion
+    }
 
-    except Exception as e:
-        try:
-            point_process = call([sound, pitch], "To PointProcess (cc)")
-            jitter_local = call(
-                point_process, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3
-            ) * 100
-            shimmer_local = call(
-                [sound, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3
-            ) * 100
-
-            results["summary"]["jitter_percent"] = jitter_local
-            results["summary"]["shimmer_percent"] = shimmer_local
-            results["summary"]["vibrato"] = {"is_present": False}
-
-            print("Aviso: Vibrato não pôde ser calculado, mas jitter/shimmer foram obtidos.", file=sys.stderr)
-
-        except Exception as e2:
-            results["summary"]["jitter_percent"] = "N/A"
-            results["summary"]["shimmer_percent"] = "N/A"
-            results["summary"]["vibrato"] = {"is_present": False}
-            print(f"Aviso: Falha ao calcular jitter/shimmer. {e2}", file=sys.stderr)
+except Exception as e:
+    # O ParSelmouth pode falhar em alguns arquivos, então é bom ter um fallback.
+    print(f"Aviso: Falha ao calcular jitter/shimmer/vibrato. {e}", file=sys.stderr)
+    results["summary"]["jitter_percent"] = "N/A"
+    results["summary"]["shimmer_percent"] = "N/A"
+    results["summary"]["vibrato"] = {"is_present": False, "error": str(e)}
 
     # --- DADOS ESPECÍFICOS POR EXERCÍCIO ---
     if exercise_type == "teste_vogais":
