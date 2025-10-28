@@ -5,9 +5,7 @@ from parselmouth.praat import call
 import math
 import numpy as np
 
-# --- FUNÇÕES DE CONVERSÃO E VALIDAÇÃO (MANTIDAS) ---
-# ... (Manter as funções frequency_to_note, hz_to_semitones_stdev, check_vocal_health aqui) ...
-# [Código das funções omitido por brevidade, mas devem estar no seu arquivo]
+# --- FUNÇÕES DE CONVERSÃO E VALIDAÇÃO ---
 
 def frequency_to_note(frequency):
     """Converte frequência em Hertz para a notação musical (ex: A4)."""
@@ -64,6 +62,7 @@ PITCH_CEILING = 800.0
 
 try:
     filename = sys.argv[1]
+    # Argumentos esperados: 'saude_qualidade', 'extensao_afinacao', 'comunicacao_entonação'
     exercise_type = sys.argv[2] if len(sys.argv) > 2 else "saude_qualidade"
 except IndexError:
     print(json.dumps({"status": "Falha na inicialização.", "error": "Argumento 'filename' ausente."}))
@@ -119,14 +118,14 @@ try:
     jitter_local, shimmer_local, vibrato_data = "N/A", "N/A", {"is_present": False, "error": "Não calculado."}
     
     try:
-        # AQUI ESTÁ O TRATAMENTO CRÍTICO: Isolar a falha na criação do PointProcess
+        # Tenta criar PointProcess (pode falhar em voz muito irregular/ruído)
         point_process = call([sound, pitch], "To PointProcess (cc)") 
 
-        # Se PointProcess falhar, o código pula para o 'except' abaixo.
-        # Se PointProcess for criado, calculamos as métricas:
+        # Se PointProcess for criado, calcula as métricas:
         jitter_local = call([sound, point_process], "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100 
         shimmer_local = call([sound, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
 
+        # Vibrato
         avg_period, freq_excursion, _, _, _, _, _, _ = call(
             [sound, point_process, pitch], "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
         )
@@ -138,11 +137,9 @@ try:
         }
 
     except parselmouth.PraatError as e:
-        # Pega erros específicos do Praat (ex: PointProcess falhou)
         print(f"Aviso: Falha ao calcular Jitter/Shimmer/Vibrato devido a voz não periódica. {e}", file=sys.stderr)
         vibrato_data["error"] = "Falha de cálculo: voz muito instável/ruidosa ou não vozeada."
     except Exception as e:
-        # Pega outros erros inesperados
         print(f"Aviso: Falha desconhecida ao calcular Jitter/Shimmer/Vibrato. {e}", file=sys.stderr)
         vibrato_data["error"] = f"Erro inesperado: {str(e)}"
         
@@ -151,7 +148,6 @@ try:
     summary_data["vibrato"] = vibrato_data
     
     # --- 4. VERIFICAÇÃO DE SAÚDE VOCAL ---
-    # Só calcula o alerta se os valores não forem "N/A"
     if jitter_local != "N/A" and shimmer_local != "N/A":
         saude_vocal_alert = check_vocal_health(jitter_local, shimmer_local, hnr_db)
     else:
@@ -164,6 +160,8 @@ try:
     # --- 5. LÓGICA CONDICIONAL PARA AS NOVAS CATEGORIAS ---
     
     if exercise_type == "extensao_afinacao":
+        # Combina "analise_extensao" e "teste_vogais"
+        
         # A. Análise de Extensão (pitch range)
         min_pitch_hz = np.min(valid_pitches)
         max_pitch_hz = np.max(valid_pitches)
@@ -193,7 +191,6 @@ try:
                 f2 = call(formant_vowel, "Get value at time", 2, mid_time, "Hertz", "Linear")
                 vowel_formants[vogal] = {"f1": f1, "f2": f2}
             except Exception as e:
-                # Se falhar, registra N/A para essa vogal, mas não para o JSON inteiro
                 vowel_formants[vogal] = {"f1": "N/A", "f2": "N/A", "error": str(e)}
 
         results["vowel_space_data"] = vowel_formants
@@ -202,16 +199,24 @@ try:
     
     elif exercise_type in ["saude_qualidade", "comunicacao_entonação"]:
         # Contorno de Pitch
-        pitch_contour_raw = pitch.as_matrix()
-        times = pitch.xs()
         
-        pitch_contour_clean = [
-            [time, (None if freq <= 0 else freq)]
-            for time, freq in zip(times, pitch_contour_raw[0, :])
-        ]
+        # INÍCIO DA CORREÇÃO: VERIFICAR SE PITCH É VÁLIDO ANTES DE USAR as_matrix()
+        if pitch is not None and hasattr(pitch, 'as_matrix'): 
+            pitch_contour_raw = pitch.as_matrix()
+            times = pitch.xs()
+            
+            pitch_contour_clean = [
+                [time, (None if freq <= 0 else freq)]
+                for time, freq in zip(times, pitch_contour_raw[0, :])
+            ]
 
-        results["time_series"] = {"pitch_contour": pitch_contour_clean}
-        
+            results["time_series"] = {"pitch_contour": pitch_contour_clean}
+            
+        else:
+            # Se pitch é inválido, registra um warning em vez de quebrar o JSON
+            results["time_series"] = {"pitch_contour": [], "warning": "Contorno não gerado: objeto Pitch inválido ou erro de detecção de frequência."}
+        # FIM DA CORREÇÃO
+
         if exercise_type == "saude_qualidade":
              results["tmf_seconds"] = duration
              results["status"] = "Análise de Saúde e Qualidade completa."
@@ -224,6 +229,7 @@ try:
         results["status"] = "Análise completa."
 
 except Exception as e:
+    # Captura qualquer erro de alto nível que possa ter sido lançado (ex: ValueError do len(valid_pitches))
     results = {"status": "Falha na análise.", "error": str(e), "exercise_type": exercise_type, "details": str(e)}
 
 print(json.dumps(results, indent=2))
