@@ -114,35 +114,44 @@ try:
         "formant2_hz": f2_hz
     }
     
-    # --- 3. JITTER, SHIMMER, VIBRATO (ROBUSTEZ APRIMORADA) ---
+    # --- 3. JITTER, SHIMMER, VIBRATO (ROBUSTEZ APRIMORADA COM NOVO MÉTODO) ---
     jitter_local, shimmer_local, vibrato_data = "N/A", "N/A", {"is_present": False, "error": "Não calculado."}
     
-    try:
-        # Tenta criar PointProcess (pode falhar em voz muito irregular/ruído)
-        point_process = call([sound, pitch], "To PointProcess (cc)") 
+    # Jitter/Shimmer/Vibrato só são relevantes para testes de sustentação e qualidade
+    if exercise_type in ["saude_qualidade", "comunicacao_entonação"]:
+        try:
+            # MÉTODO AJUSTADO: Usando "To PointProcess (periodic, cc)" com limites de F0
+            # Isso é ligeiramente mais robusto que o método anterior para evitar erros "voz não periódica".
+            point_process = call(
+                sound, 
+                "To PointProcess (periodic, cc)", 
+                PITCH_FLOOR, 
+                PITCH_CEILING
+            )
 
-        # Se PointProcess for criado, calcula as métricas:
-        jitter_local = call([sound, point_process], "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100 
-        shimmer_local = call([sound, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
+            # Se PointProcess for criado, calcula as métricas:
+            jitter_local = call([sound, point_process], "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100 
+            shimmer_local = call([sound, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
 
-        # Vibrato
-        avg_period, freq_excursion, _, _, _, _, _, _ = call(
-            [sound, point_process, pitch], "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
-        )
-        
-        vibrato_data = {
-            "is_present": (freq_excursion > 0.05),
-            "rate_hz": 1 / avg_period if avg_period > 0 else 0,
-            "extent_semitones": freq_excursion
-        }
+            # Vibrato
+            avg_period, freq_excursion, _, _, _, _, _, _ = call(
+                [sound, point_process, pitch], "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
+            )
+            
+            vibrato_data = {
+                "is_present": (freq_excursion > 0.05),
+                "rate_hz": 1 / avg_period if avg_period > 0 else 0,
+                "extent_semitones": freq_excursion
+            }
+            vibrato_data["error"] = None # Sucesso no cálculo
 
-    except parselmouth.PraatError as e:
-        print(f"Aviso: Falha ao calcular Jitter/Shimmer/Vibrato devido a voz não periódica. {e}", file=sys.stderr)
-        vibrato_data["error"] = "Falha de cálculo: voz muito instável/ruidosa ou não vozeada."
-    except Exception as e:
-        print(f"Aviso: Falha desconhecida ao calcular Jitter/Shimmer/Vibrato. {e}", file=sys.stderr)
-        vibrato_data["error"] = f"Erro inesperado: {str(e)}"
-        
+        except parselmouth.PraatError as e:
+            print(f"Aviso: Falha ao calcular Jitter/Shimmer/Vibrato. (Erro Praat: {e})", file=sys.stderr)
+            vibrato_data["error"] = "Falha de cálculo: voz muito instável/ruidosa ou não sustentada o suficiente."
+        except Exception as e:
+            print(f"Aviso: Falha desconhecida ao calcular Jitter/Shimmer/Vibrato. {e}", file=sys.stderr)
+            vibrato_data["error"] = f"Erro inesperado: {str(e)}"
+    
     summary_data["jitter_percent"] = jitter_local
     summary_data["shimmer_percent"] = shimmer_local
     summary_data["vibrato"] = vibrato_data
@@ -200,7 +209,7 @@ try:
     elif exercise_type in ["saude_qualidade", "comunicacao_entonação"]:
         # Contorno de Pitch
         
-        # INÍCIO DA CORREÇÃO: VERIFICAR SE PITCH É VÁLIDO ANTES DE USAR as_matrix()
+        # INÍCIO DA CORREÇÃO DE ROBUSTEZ: Verifica se pitch é válido
         if pitch is not None and hasattr(pitch, 'as_matrix'): 
             pitch_contour_raw = pitch.as_matrix()
             times = pitch.xs()
@@ -229,7 +238,7 @@ try:
         results["status"] = "Análise completa."
 
 except Exception as e:
-    # Captura qualquer erro de alto nível que possa ter sido lançado (ex: ValueError do len(valid_pitches))
+    # Captura qualquer erro de alto nível que possa ter sido lançado
     results = {"status": "Falha na análise.", "error": str(e), "exercise_type": exercise_type, "details": str(e)}
 
 print(json.dumps(results, indent=2))
