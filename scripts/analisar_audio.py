@@ -5,7 +5,9 @@ from parselmouth.praat import call
 import math
 import numpy as np
 
-# --- FUNÇÕES DE CONVERSÃO E VALIDAÇÃO ---
+# --- FUNÇÕES DE CONVERSÃO E VALIDAÇÃO (MANTIDAS) ---
+# ... (Manter as funções frequency_to_note, hz_to_semitones_stdev, check_vocal_health aqui) ...
+# [Código das funções omitido por brevidade, mas devem estar no seu arquivo]
 
 def frequency_to_note(frequency):
     """Converte frequência em Hertz para a notação musical (ex: A4)."""
@@ -57,15 +59,12 @@ def check_vocal_health(jitter, shimmer, hnr):
 
 # --- SCRIPT PRINCIPAL ---
 
-# Define os valores de piso e teto para a detecção de pitch (mais abrangente para canto)
 PITCH_FLOOR = 50.0
 PITCH_CEILING = 800.0
 
-# Obtendo argumentos
 try:
     filename = sys.argv[1]
-    # Usado para customizar o output (ex: "sustentacao_vogal", "analise_extensao", "palestrante_leitura")
-    exercise_type = sys.argv[2] if len(sys.argv) > 2 else "sustentacao_vogal"
+    exercise_type = sys.argv[2] if len(sys.argv) > 2 else "saude_qualidade"
 except IndexError:
     print(json.dumps({"status": "Falha na inicialização.", "error": "Argumento 'filename' ausente."}))
     sys.exit(1)
@@ -73,27 +72,24 @@ except IndexError:
 
 results = {
     "status": f"Análise iniciada para: {exercise_type}",
-    "exercise_type": exercise_type
+    "exercise_type": exercise_type,
+    "vowel_space_data": {},
+    "range_data": {},
+    "time_series": {}
 }
 
 try:
     sound = parselmouth.Sound(filename)
+    duration = sound.get_total_duration()
     
     # 1. DETECÇÃO ROBUSTA DE PITCH (F0)
-    # Time step menor melhora o contorno para análise de vibrato/afinação
-    pitch = sound.to_pitch_ac(
-        pitch_floor=PITCH_FLOOR, 
-        pitch_ceiling=PITCH_CEILING,
-        time_step=0.01 
-    )
+    pitch = sound.to_pitch_ac(pitch_floor=PITCH_FLOOR, pitch_ceiling=PITCH_CEILING, time_step=0.01)
     
-    # Filtra valores de pitch válidos (> 0 Hz)
     pitch_values_all = pitch.selected_array['frequency']
     valid_pitches = pitch_values_all[pitch_values_all > 0]
 
-    # Garante que há dados válidos
     if len(valid_pitches) == 0:
-        raise ValueError("Não foi possível detectar nenhuma frequência vocal válida.")
+        raise ValueError("Não foi possível detectar nenhuma frequência vocal válida. O áudio pode estar vazio ou muito ruidoso.")
 
     # --- 2. DADOS DE RESUMO FUNDAMENTAIS ---
     mean_pitch_hz = np.mean(valid_pitches)
@@ -102,9 +98,7 @@ try:
     
     intensity_db = call(sound.to_intensity(), "Get mean", 0, 0, "dB")
     hnr_db = call(sound.to_harmonicity(), "Get mean", 0, 0)
-    duration = sound.get_total_duration()
     
-    # Formantes (Análise no ponto médio da gravação)
     formant = sound.to_formant_burg()
     mid_time = duration / 2
     f1_hz = call(formant, "Get value at time", 1, mid_time, "Hertz", "Linear")
@@ -113,7 +107,7 @@ try:
     summary_data = {
         "pitch_hz_mean": mean_pitch_hz,
         "pitch_note_mean": pitch_note,
-        "pitch_stdev_semitones": stdev_pitch_semitones, # MUITO MELHOR que stdev em Hz
+        "pitch_stdev_semitones": stdev_pitch_semitones,
         "intensity_db_mean": intensity_db,
         "hnr_db_mean": hnr_db,
         "duration_seconds": duration,
@@ -121,52 +115,56 @@ try:
         "formant2_hz": f2_hz
     }
     
-    # --- 3. JITTER, SHIMMER, VIBRATO (COM TRATAMENTO DE ERRO) ---
-    jitter_local, shimmer_local, vibrato_data = "N/A", "N/A", {"is_present": False}
+    # --- 3. JITTER, SHIMMER, VIBRATO (ROBUSTEZ APRIMORADA) ---
+    jitter_local, shimmer_local, vibrato_data = "N/A", "N/A", {"is_present": False, "error": "Não calculado."}
     
     try:
-        # Cria o PointProcess (ciclos glóticos) que é necessário para Jitter/Shimmer
-        point_process = call([sound, pitch], "To PointProcess (cc)")
+        # AQUI ESTÁ O TRATAMENTO CRÍTICO: Isolar a falha na criação do PointProcess
+        point_process = call([sound, pitch], "To PointProcess (cc)") 
 
-        # Jitter Local (em % para melhor visualização)
-        jitter_local = call(
-            [sound, point_process], "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3
-        ) * 100 
+        # Se PointProcess falhar, o código pula para o 'except' abaixo.
+        # Se PointProcess for criado, calculamos as métricas:
+        jitter_local = call([sound, point_process], "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3) * 100 
+        shimmer_local = call([sound, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3) * 100
 
-        # Shimmer Local (em % para melhor visualização)
-        shimmer_local = call(
-            [sound, point_process], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3
-        ) * 100
-
-        # Vibrato (Retorna 8 valores)
         avg_period, freq_excursion, _, _, _, _, _, _ = call(
             [sound, point_process, pitch], "Get vibrato", 0, 0, 0.01, 0.0001, 0.05, 0.2, 0.1, 0.9, 0.01, 100
         )
         
         vibrato_data = {
-            "is_present": (freq_excursion > 0.05), # Excursão de 0.05 semitons como limite
+            "is_present": (freq_excursion > 0.05),
             "rate_hz": 1 / avg_period if avg_period > 0 else 0,
             "extent_semitones": freq_excursion
         }
 
+    except parselmouth.PraatError as e:
+        # Pega erros específicos do Praat (ex: PointProcess falhou)
+        print(f"Aviso: Falha ao calcular Jitter/Shimmer/Vibrato devido a voz não periódica. {e}", file=sys.stderr)
+        vibrato_data["error"] = "Falha de cálculo: voz muito instável/ruidosa ou não vozeada."
     except Exception as e:
-        # O PointProcess pode falhar em vozes muito irregulares.
-        print(f"Aviso: Falha ao calcular jitter/shimmer/vibrato. {e}", file=sys.stderr)
+        # Pega outros erros inesperados
+        print(f"Aviso: Falha desconhecida ao calcular Jitter/Shimmer/Vibrato. {e}", file=sys.stderr)
+        vibrato_data["error"] = f"Erro inesperado: {str(e)}"
         
     summary_data["jitter_percent"] = jitter_local
     summary_data["shimmer_percent"] = shimmer_local
     summary_data["vibrato"] = vibrato_data
     
     # --- 4. VERIFICAÇÃO DE SAÚDE VOCAL ---
-    saude_vocal_alert = check_vocal_health(jitter_local, shimmer_local, hnr_db)
+    # Só calcula o alerta se os valores não forem "N/A"
+    if jitter_local != "N/A" and shimmer_local != "N/A":
+        saude_vocal_alert = check_vocal_health(jitter_local, shimmer_local, hnr_db)
+    else:
+        saude_vocal_alert = "Falha no Alerta (Jitter/Shimmer N/A)"
+        
     summary_data["vocal_health_alert"] = saude_vocal_alert
     
     results["summary"] = summary_data
 
-    # --- 5. DADOS ESPECÍFICOS POR EXERCÍCIO (Mantidos e Refinados) ---
+    # --- 5. LÓGICA CONDICIONAL PARA AS NOVAS CATEGORIAS ---
     
-    if exercise_type == "analise_extensao":
-        # Pitch values já filtrados anteriormente
+    if exercise_type == "extensao_afinacao":
+        # A. Análise de Extensão (pitch range)
         min_pitch_hz = np.min(valid_pitches)
         max_pitch_hz = np.max(valid_pitches)
 
@@ -176,27 +174,56 @@ try:
             "min_pitch_note": frequency_to_note(min_pitch_hz),
             "max_pitch_note": frequency_to_note(max_pitch_hz)
         }
-        results["status"] = "Análise de extensão vocal completa."
         
-    elif exercise_type in ["sustentacao_vogal", "palestrante_leitura"]:
-        # Contorno de Pitch (Série temporal para visualização de estabilidade)
-        pitch_contour_raw = pitch.as_matrix() # Usa a matriz para pegar todos os dados de pitch
+        # B. Análise de Vogais (Formantes no "A-E-I-O-U" - usando 5 intervalos)
+        vogais = ['a', 'e', 'i', 'o', 'u']
+        vowel_formants = {}
+        interval_duration = duration / len(vogais)
+        
+        for i, vogal in enumerate(vogais):
+            start_time = i * interval_duration
+            end_time = (i + 1) * interval_duration
+            mid_time = start_time + interval_duration / 2
+            
+            if mid_time > sound.get_total_duration(): continue
+            
+            formant_vowel = sound.to_formant_burg() 
+            try:
+                f1 = call(formant_vowel, "Get value at time", 1, mid_time, "Hertz", "Linear")
+                f2 = call(formant_vowel, "Get value at time", 2, mid_time, "Hertz", "Linear")
+                vowel_formants[vogal] = {"f1": f1, "f2": f2}
+            except Exception as e:
+                # Se falhar, registra N/A para essa vogal, mas não para o JSON inteiro
+                vowel_formants[vogal] = {"f1": "N/A", "f2": "N/A", "error": str(e)}
+
+        results["vowel_space_data"] = vowel_formants
+        results["status"] = "Análise de Extensão e Afinação completa."
+        
+    
+    elif exercise_type in ["saude_qualidade", "comunicacao_entonação"]:
+        # Contorno de Pitch
+        pitch_contour_raw = pitch.as_matrix()
         times = pitch.xs()
         
-        # Filtra o contorno para incluir apenas valores válidos (não 0 Hz)
         pitch_contour_clean = [
             [time, (None if freq <= 0 else freq)]
             for time, freq in zip(times, pitch_contour_raw[0, :])
         ]
 
         results["time_series"] = {"pitch_contour": pitch_contour_clean}
-        results["status"] = f"Análise de {exercise_type} completa."
+        
+        if exercise_type == "saude_qualidade":
+             results["tmf_seconds"] = duration
+             results["status"] = "Análise de Saúde e Qualidade completa."
+        
+        if exercise_type == "comunicacao_entonação":
+            results["status"] = "Análise de Comunicação e Entonação completa."
 
 
     if "status" not in results or results["status"].startswith("Análise iniciada"):
         results["status"] = "Análise completa."
 
 except Exception as e:
-    results = {"status": "Falha na análise.", "error": str(e), "exercise_type": exercise_type}
+    results = {"status": "Falha na análise.", "error": str(e), "exercise_type": exercise_type, "details": str(e)}
 
 print(json.dumps(results, indent=2))
