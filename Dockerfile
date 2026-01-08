@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Limpa o cache e instala uma VERSÃO ESPECÍFICA E ESTÁVEL do n8n
-RUN npm install -g n8n@2.8.1
+RUN npm cache clean --force && npm install -g n8n@latest
 
 # Cria um usuário não-root 'node' para rodar a aplicação
 RUN useradd -ms /bin/bash node
