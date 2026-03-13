@@ -4,17 +4,17 @@ FROM python:3.12-slim-bookworm
 # Define o usuário como root para instalar pacotes
 USER root
 
-# Instala as dependências de sistema, forçando a instalação do Node.js v20
+# Instala as dependências de sistema, forçando a instalação do Node.js v22
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends \
     nodejs \
     ffmpeg \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Limpa o cache e instala uma VERSÃO ESPECÍFICA E ESTÁVEL do n8n
+# Limpa o cache e instala a versão mais recente do n8n
 RUN npm cache clean --force && npm install -g n8n@latest
 
 # Cria um usuário não-root 'node' para rodar a aplicação
