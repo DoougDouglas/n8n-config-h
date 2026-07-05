@@ -1,6 +1,8 @@
-# Base: imagem OFICIAL do n8n (Alpine), versao PINADA, via Docker Hub.
-# Para atualizar o n8n no futuro, troque o numero abaixo de forma consciente.
-FROM n8nio/n8n:2.11.4
+# Base: imagem OFICIAL do n8n via Docker Hub, PINADA na 2.0.2.
+# ATENCAO: NAO subir para 2.1.0+ neste Dockerfile! A partir da 2.1.0 a imagem
+# oficial e "hardened" (sem apk/apt-get) e nao aceita mais instalacao de pacotes.
+# A 2.0.2 e a ultima versao extensivel da linha 2.x.
+FROM n8nio/n8n:2.0.2
 
 # Root apenas para instalar pacotes
 USER root
