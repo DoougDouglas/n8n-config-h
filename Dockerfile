@@ -1,41 +1,28 @@
-# PASSO 1: Usar uma imagem base oficial do Python com Debian "Bookworm"
-FROM python:3.12-slim-bookworm
+# Base: imagem OFICIAL do n8n (Alpine), versao PINADA.
+# Para atualizar o n8n no futuro, troque o numero abaixo de forma consciente.
+FROM docker.n8n.io/n8nio/n8n:2.11.4
 
-# Define o usuário como root para instalar pacotes
+# Root apenas para instalar pacotes
 USER root
 
-# Instala as dependências de sistema, forçando a instalação do Node.js v22
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends \
-    nodejs \
-    ffmpeg \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# ffmpeg + Python 3 + pip (Alpine usa apk, nao apt-get)
+RUN apk add --no-cache ffmpeg python3 py3-pip
 
-# Limpa o cache e instala a versão mais recente do n8n
-RUN npm cache clean --force && npm install -g n8n@latest
+# Bibliotecas Python do requirements.txt
+# (instala deps de compilacao temporarias e remove depois, para libs que compilam codigo nativo)
+COPY requirements.txt /tmp/requirements.txt
+RUN apk add --no-cache --virtual .build-deps gcc g++ musl-dev python3-dev libffi-dev \
+    && pip3 install --break-system-packages --no-cache-dir -r /tmp/requirements.txt \
+    && apk del .build-deps \
+    && rm /tmp/requirements.txt
 
-# Cria um usuário não-root 'node' para rodar a aplicação
-RUN useradd -ms /bin/bash node
-
-# Copia os requirements e define o diretório de trabalho
-WORKDIR /app
-COPY requirements.txt ./
-
-# Instala as bibliotecas Python
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copia seus scripts
+# Seus scripts
 COPY ./scripts/ /scripts/
-RUN chmod +x /scripts/*.py
+RUN chmod +x /scripts/*.py && chown -R node:node /scripts
 
-# Muda a propriedade dos arquivos para o usuário 'node'
-RUN chown -R node:node /app /scripts
-
-# Muda para o usuário 'node'
+# Volta para o usuario padrao da imagem oficial
 USER node
 
-# Define o comando padrão para iniciar o n8n quando o contêiner rodar
-CMD ["n8n"]
+# IMPORTANTE: NAO redefinir CMD nem ENTRYPOINT.
+# A imagem oficial ja inicia o n8n corretamente — era o CMD manual
+# que causava o erro "Command start not found".
