@@ -1,6 +1,6 @@
-# Base: imagem OFICIAL do n8n (Alpine), versao PINADA.
+# Base: imagem OFICIAL do n8n (Alpine), versao PINADA, via Docker Hub.
 # Para atualizar o n8n no futuro, troque o numero abaixo de forma consciente.
-FROM docker.n8n.io/n8nio/n8n:2.11.4
+FROM n8nio/n8n:2.11.4
 
 # Root apenas para instalar pacotes
 USER root
@@ -19,6 +19,10 @@ RUN apk add --no-cache --virtual .build-deps gcc g++ musl-dev python3-dev libffi
 # Seus scripts
 COPY ./scripts/ /scripts/
 RUN chmod +x /scripts/*.py && chown -R node:node /scripts
+
+# Pasta de trabalho para arquivos dos workflows (TXTs, etc.)
+# Sera montada como volume persistente no docker-compose
+RUN mkdir -p /files && chown -R node:node /files
 
 # Volta para o usuario padrao da imagem oficial
 USER node
