@@ -1,34 +1,46 @@
-# Base: imagem OFICIAL do n8n via Docker Hub, PINADA na 2.0.2.
-# ATENCAO: NAO subir para 2.1.0+ neste Dockerfile! A partir da 2.1.0 a imagem
-# oficial e "hardened" (sem apk/apt-get) e nao aceita mais instalacao de pacotes.
-# A 2.0.2 e a ultima versao extensivel da linha 2.x.
-FROM n8nio/n8n:2.0.2
+# Base Debian (Bookworm) com Python 3.12 — a mesma que voce ja usava.
+# E a base certa para o seu stack de audio: aubio, parselmouth, llvmlite etc.
+# baixam wheels prontos (glibc) ou compilam de boa no gcc do Debian.
+FROM python:3.12-slim-bookworm
 
-# Root apenas para instalar pacotes
 USER root
 
-# ffmpeg + Python 3 + pip (Alpine usa apk, nao apt-get)
-RUN apk add --no-cache ffmpeg python3 py3-pip
+# Node.js 22 + ffmpeg + wget (healthcheck) + build-essential (compila aubio e modulos nativos)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    wget \
+    ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends \
+    nodejs \
+    ffmpeg \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Bibliotecas Python do requirements.txt
-# (instala deps de compilacao temporarias e remove depois, para libs que compilam codigo nativo)
-COPY requirements.txt /tmp/requirements.txt
-RUN apk add --no-cache --virtual .build-deps gcc g++ musl-dev python3-dev libffi-dev \
-    && pip3 install --break-system-packages --no-cache-dir -r /tmp/requirements.txt \
-    && apk del .build-deps \
-    && rm /tmp/requirements.txt
+# n8n PINADO na 2.0.2 — NUNCA usar @latest (foi isso que derrubou tudo).
+# 2.0.2 e a versao 2.x compativel com este modelo de instalacao customizada.
+RUN npm cache clean --force && npm install -g n8n@2.0.2
+
+# Usuario nao-root para rodar a aplicacao
+RUN useradd -ms /bin/bash node
+
+# Bibliotecas Python (maioria via wheels prontos no Debian)
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Seus scripts
 COPY ./scripts/ /scripts/
-RUN chmod +x /scripts/*.py && chown -R node:node /scripts
+RUN chmod +x /scripts/*.py
 
-# Pasta de trabalho para arquivos dos workflows (TXTs, etc.)
-# Sera montada como volume persistente no docker-compose
-RUN mkdir -p /files && chown -R node:node /files
+# Pasta de trabalho persistente para arquivos dos workflows (montada via volume no compose)
+RUN mkdir -p /files
 
-# Volta para o usuario padrao da imagem oficial
+# Home do n8n e permissoes
+RUN mkdir -p /home/node/.n8n \
+    && chown -R node:node /app /scripts /files /home/node
+
 USER node
 
-# IMPORTANTE: NAO redefinir CMD nem ENTRYPOINT.
-# A imagem oficial ja inicia o n8n corretamente — era o CMD manual
-# que causava o erro "Command start not found".
+# Inicia o n8n (comando padrao = start)
+CMD ["n8n"]
